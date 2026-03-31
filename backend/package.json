@@ -1,0 +1,12 @@
+{
+  "name": "server-dashboard-backend",
+  "version": "1.0.0",
+  "description": "Backend for kiosk dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
