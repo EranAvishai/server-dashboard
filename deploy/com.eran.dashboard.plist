@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eran.dashboard</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/eranmanolio/apps/server-dashboard/backend/server.js</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PORT</key>
+    <string>8787</string>
+    <key>ADGUARD_BASE</key>
+    <string>http://127.0.0.1:3000</string>
+    <key>ADGUARD_USER</key>
+    <string>root</string>
+    <key>ADGUARD_PASS</key>
+    <string>AmsPassword</string>
+    <key>STREAMIO_PORT</key>
+    <string>11470</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/eranmanolio/apps/server-dashboard/backend</string>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/server-dashboard.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/server-dashboard.err.log</string>
+</dict>
+</plist>
