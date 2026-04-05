@@ -201,17 +201,13 @@ function useAdGuardStats() {
 
     const pull = async () => {
       try {
-        const [statsRes, historyRes] = await Promise.all([
-          fetch("/api/adguard/stats"),
-          fetch("/api/adguard/history"),
-        ]);
+        const statsRes = await fetch("/api/adguard/stats");
 
-        if (!statsRes.ok || !historyRes.ok) {
+        if (!statsRes.ok) {
           throw new Error("API unreachable");
         }
 
         const statsJson = await statsRes.json();
-        const historyJson = await historyRes.json();
 
         if (cancelled) return;
 
@@ -222,11 +218,11 @@ function useAdGuardStats() {
         let nextSeries = makeDemoSeries();
 
         if (
-          Array.isArray(historyJson.dns_queries) &&
-          Array.isArray(historyJson.blocked_filtering)
+          Array.isArray(statsJson.dns_queries) &&
+          Array.isArray(statsJson.blocked_filtering)
         ) {
-          const dnsQueries = historyJson.dns_queries.slice(-24);
-          const blockedQueries = historyJson.blocked_filtering.slice(-24);
+          const dnsQueries = statsJson.dns_queries.slice(-24);
+          const blockedQueries = statsJson.blocked_filtering.slice(-24);
 
           nextSeries = dnsQueries.map((val, idx) => {
             const t = Number(val ?? 0);
@@ -246,6 +242,7 @@ function useAdGuardStats() {
       } catch {
         if (!cancelled) {
           setStatus("Fallback");
+          setSeries(makeDemoSeries());
         }
       }
     };
