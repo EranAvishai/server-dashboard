@@ -20,7 +20,7 @@ const NETWORK_REFRESH_MS = 30 * 60 * 1000;
 
 const MARKET_ASSETS = [
   { key: "sp500", label: "S&P 500", symbol: "^GSPC", suffix: "USD" },
-  { key: "ta125", label: "TA-125", symbol: "TA125.TA", suffix: "ILS" },
+  { key: "ta125", label: "TA-125", symbol: "^TA125.TA", suffix: "ILS" },
   { key: "gold", label: "Gold", symbol: "GC=F", suffix: "USD" },
   { key: "btc", label: "Bitcoin", symbol: "BTC-USD", suffix: "USD" },
 ];
@@ -71,10 +71,11 @@ async function getAdGuard(pathname) {
 
 async function fetchYahooQuote(asset) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.symbol)}?interval=1d&range=5d&includePrePost=false&events=div,splits`;
+
   const json = await fetchJson(url, {
     headers: {
       "User-Agent": "Mozilla/5.0",
-      "Accept": "application/json",
+      Accept: "application/json",
     },
     timeoutMs: 10000,
   });
@@ -92,13 +93,14 @@ async function fetchYahooQuote(asset) {
     ? ((price - previousClose) / previousClose) * 100
     : 0;
 
-  const asOf = new Date((meta.regularMarketTime || Math.floor(Date.now() / 1000)) * 1000)
-    .toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Jerusalem",
-    });
+  const asOf = new Date(
+    (meta.regularMarketTime || Math.floor(Date.now() / 1000)) * 1000
+  ).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Jerusalem",
+  });
 
   return {
     key: asset.key,
@@ -157,7 +159,6 @@ async function getNetworkSample() {
 
   try {
     const { stdout } = await execPromise("networkQuality -s", 120000);
-
     const match = stdout.match(/Download capacity:\s*([0-9.]+)\s*Mbps/i);
     const mbps = match ? Number(match[1]) : 0;
 

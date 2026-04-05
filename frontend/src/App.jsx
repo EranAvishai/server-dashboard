@@ -206,7 +206,9 @@ function useAdGuardStats() {
           fetch("/api/adguard/history"),
         ]);
 
-        if (!statsRes.ok || !historyRes.ok) throw new Error("API unreachable");
+        if (!statsRes.ok || !historyRes.ok) {
+          throw new Error("API unreachable");
+        }
 
         const statsJson = await statsRes.json();
         const historyJson = await historyRes.json();
@@ -385,25 +387,25 @@ function pickTheme(hour, weatherCode) {
 
   if (hour >= 5 && hour < 10) {
     if (rainy) {
-      return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.22),_transparent_28%),linear-gradient(180deg,_#334155_0%,_#1e293b_45%,_#0f172a_100%)]";
+      return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.22),_transparent_30%),linear-gradient(180deg,_#475569_0%,_#1e293b_46%,_#0f172a_100%)]";
     }
     if (cloudy) {
-      return "bg-[radial-gradient(circle_at_top,_rgba(191,219,254,0.16),_transparent_30%),linear-gradient(180deg,_#475569_0%,_#334155_42%,_#0f172a_100%)]";
+      return "bg-[radial-gradient(circle_at_top,_rgba(191,219,254,0.16),_transparent_30%),linear-gradient(180deg,_#64748b_0%,_#334155_44%,_#0f172a_100%)]";
     }
     if (clear) {
-      return "bg-[radial-gradient(circle_at_top,_rgba(253,224,71,0.28),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.18),_transparent_24%),linear-gradient(180deg,_#2563eb_0%,_#1d4ed8_36%,_#0f172a_100%)]";
+      return "bg-[radial-gradient(circle_at_top,_rgba(253,224,71,0.28),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.18),_transparent_24%),linear-gradient(180deg,_#3b82f6_0%,_#1d4ed8_36%,_#0f172a_100%)]";
     }
   }
 
   if (hour >= 10 && hour < 17) {
     if (rainy) {
-      return "bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_28%),linear-gradient(180deg,_#1e293b_0%,_#0f172a_100%)]";
+      return "bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_30%),linear-gradient(180deg,_#334155_0%,_#0f172a_100%)]";
     }
     if (cloudy) {
-      return "bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.16),_transparent_28%),linear-gradient(180deg,_#334155_0%,_#1f2937_44%,_#0f172a_100%)]";
+      return "bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.18),_transparent_30%),linear-gradient(180deg,_#475569_0%,_#1f2937_44%,_#0f172a_100%)]";
     }
     if (clear) {
-      return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.18),_transparent_24%),linear-gradient(180deg,_#0f766e_0%,_#0f172a_100%)]";
+      return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.20),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.18),_transparent_24%),linear-gradient(180deg,_#0f766e_0%,_#0f172a_100%)]";
     }
   }
 
@@ -411,24 +413,24 @@ function pickTheme(hour, weatherCode) {
     if (rainy) {
       return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.10),_transparent_24%),linear-gradient(180deg,_#1e293b_0%,_#0f172a_100%)]";
     }
-    return "bg-[radial-gradient(circle_at_top,_rgba(251,146,60,0.24),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.16),_transparent_24%),linear-gradient(180deg,_#312e81_0%,_#0f172a_100%)]";
+    return "bg-[radial-gradient(circle_at_top,_rgba(251,146,60,0.24),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.16),_transparent_24%),linear-gradient(180deg,_#4338ca_0%,_#0f172a_100%)]";
   }
 
   if (rainy) {
     return "bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.14),_transparent_28%),linear-gradient(180deg,_#111827_0%,_#020617_100%)]";
   }
 
-  return "bg-[radial-gradient(circle_at_top,_rgba(129,140,248,0.18),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.10),_transparent_24%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]";
+  return "bg-[radial-gradient(circle_at_top,_rgba(129,140,248,0.20),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.10),_transparent_24%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]";
 }
 
 function WeatherIcon({ code, hour }) {
   const night = hour >= 19 || hour < 6;
   if ([51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(code)) {
-    return <CloudDrizzle className="h-5 w-5" />;
+    return <CloudDrizzle className="h-4 w-4" />;
   }
-  if (night) return <CloudMoon className="h-5 w-5" />;
-  if (code === 0) return <Sun className="h-5 w-5" />;
-  return <CloudSun className="h-5 w-5" />;
+  if (night) return <CloudMoon className="h-4 w-4" />;
+  if (code === 0) return <Sun className="h-4 w-4" />;
+  return <CloudSun className="h-4 w-4" />;
 }
 
 function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
@@ -442,15 +444,15 @@ function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
           : "text-white";
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
+    <div className="rounded-3xl border border-white/10 bg-white/5 p-3 shadow-2xl backdrop-blur-sm">
       <div className="mb-2 flex items-center gap-2 text-white/65">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs uppercase tracking-[0.22em]">{title}</span>
+        <Icon className="h-3.5 w-3.5" />
+        <span className="text-[10px] uppercase tracking-[0.24em]">{title}</span>
       </div>
-      <div className={`text-3xl font-semibold tracking-tight ${toneClass}`}>
+      <div className={`text-2xl font-semibold tracking-tight ${toneClass}`}>
         {value}
       </div>
-      <div className="mt-2 text-sm text-white/50">{hint}</div>
+      <div className="mt-1.5 text-xs text-white/50">{hint}</div>
     </div>
   );
 }
@@ -462,25 +464,23 @@ function GraphPanel({ data, status }) {
       : "border-amber-400/20 bg-amber-400/10 text-amber-200";
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
+    <div className="h-full rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-white">
             <LineChart className="h-4 w-4" />
             AdGuard analytics
           </div>
-          <div className="mt-1 text-sm text-white/55">
+          <div className="mt-1 text-xs text-white/55">
             Allowed vs blocked DNS activity for the last 24 hours
           </div>
         </div>
-        <div
-          className={`rounded-full border px-3 py-1 text-xs ${badgeClass}`}
-        >
+        <div className={`rounded-full border px-3 py-1 text-xs ${badgeClass}`}>
           {status}
         </div>
       </div>
 
-      <div className="h-[250px] w-full">
+      <div className="h-[215px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
@@ -493,21 +493,18 @@ function GraphPanel({ data, status }) {
                 <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid
-              stroke="rgba(255,255,255,0.08)"
-              vertical={false}
-            />
+            <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
             <XAxis
               dataKey="hour"
-              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }}
+              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }}
+              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
-              width={42}
+              width={38}
             />
             <Tooltip
               contentStyle={{
@@ -553,13 +550,13 @@ function MarketRotator({ asset, index, count }) {
     <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+          <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
             Market pulse
           </div>
-          <div className="mt-2 text-3xl font-semibold tracking-tight text-white">
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-white">
             {asset.label}
           </div>
-          <div className="mt-2 text-sm text-white/55">
+          <div className="mt-2 text-xs text-white/55">
             Rotates every 10 seconds · refreshes every 16 minutes
           </div>
         </div>
@@ -568,7 +565,7 @@ function MarketRotator({ asset, index, count }) {
         </div>
       </div>
 
-      <div className="mt-6 flex items-end justify-between gap-6">
+      <div className="mt-5 flex items-end justify-between gap-6">
         <div>
           <div className="text-5xl font-semibold tracking-tight text-white">
             {Number(asset.price).toLocaleString(undefined, {
@@ -601,24 +598,19 @@ function MarketRotator({ asset, index, count }) {
 
 function ClockTile({ time, date }) {
   return (
-    <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-sm">
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <div className="text-xs uppercase tracking-[0.28em] text-sky-200/80">
-            MacBook server kiosk
-          </div>
+    <div className="rounded-[2rem] border border-white/10 bg-white/5 px-5 py-4 shadow-2xl backdrop-blur-sm">
+      <div className="flex h-full flex-col items-center justify-center text-center">
+        <div className="mb-2 text-[10px] uppercase tracking-[0.28em] text-sky-200/80">
+          MacBook server kiosk
         </div>
-
-        <div className="text-right">
-          <div className="flex items-center justify-end gap-2 text-xs uppercase tracking-[0.24em] text-white/45">
-            <MoonStar className="h-4 w-4" />
-            Local time
-          </div>
-          <div className="mt-2 text-5xl font-semibold tracking-tight text-white">
-            {time}
-          </div>
-          <div className="mt-2 text-sm text-white/55">{date}</div>
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-white/45">
+          <MoonStar className="h-3.5 w-3.5" />
+          Local time
         </div>
+        <div className="mt-2 text-[4.4rem] font-semibold leading-none tracking-tight text-white">
+          {time}
+        </div>
+        <div className="mt-2 text-sm text-white/55">{date}</div>
       </div>
     </div>
   );
@@ -655,7 +647,7 @@ export default function ServerKioskDashboard() {
     <div className="h-screen overflow-hidden bg-slate-950 text-white">
       <div className={`h-screen overflow-hidden px-4 py-4 lg:px-5 lg:py-5 ${themeClass}`}>
         <div className="mx-auto flex h-full max-w-[1500px] flex-col gap-4">
-          <header className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_1fr]">
+          <header className="grid grid-cols-1 gap-4 xl:grid-cols-[0.72fr_1.28fr]">
             <ClockTile time={time} date={date} />
 
             <div className="grid grid-cols-2 gap-4">
@@ -685,15 +677,13 @@ export default function ServerKioskDashboard() {
                 icon={Wifi}
                 title="Stremio"
                 value={streamio.status}
-                hint={`${
-                  streamio.quality
-                } · ${streamio.mbps ? `${streamio.mbps} Mbps` : "No speed sample"}`}
+                hint={`${streamio.quality} · ${streamio.mbps ? `${streamio.mbps} Mbps` : "No speed sample"}`}
                 tone={streamTone}
               />
             </div>
           </header>
 
-          <main className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[1.18fr_0.95fr]">
+          <main className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[1.08fr_0.92fr]">
             <section className="flex min-h-0 flex-col gap-4">
               <MarketRotator
                 asset={market.current}
@@ -713,7 +703,7 @@ export default function ServerKioskDashboard() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Location
                     </div>
                     <div className="mt-2 text-lg font-semibold">
@@ -721,7 +711,7 @@ export default function ServerKioskDashboard() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Today
                     </div>
                     <div className="mt-2 text-lg font-semibold">
@@ -729,7 +719,7 @@ export default function ServerKioskDashboard() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Humidity
                     </div>
                     <div className="mt-2 text-lg font-semibold">
@@ -737,7 +727,7 @@ export default function ServerKioskDashboard() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Wind
                     </div>
                     <div className="mt-2 text-lg font-semibold">
@@ -754,7 +744,7 @@ export default function ServerKioskDashboard() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Server
                     </div>
                     <div
@@ -768,7 +758,7 @@ export default function ServerKioskDashboard() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Profile
                     </div>
                     <div
@@ -784,7 +774,7 @@ export default function ServerKioskDashboard() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Speed sample
                     </div>
                     <div className="mt-2 text-lg font-semibold">
@@ -792,7 +782,7 @@ export default function ServerKioskDashboard() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
                       Response
                     </div>
                     <div className="mt-2 text-lg font-semibold">
@@ -808,5 +798,3 @@ export default function ServerKioskDashboard() {
     </div>
   );
 }
-
-
