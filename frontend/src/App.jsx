@@ -10,7 +10,6 @@ import {
   Gauge,
   LineChart,
   MoonStar,
-  Server,
   Shield,
   Sun,
   Wifi,
@@ -126,7 +125,9 @@ function useWeather() {
           forecast_days: "1",
         });
 
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?${params.toString()}`
+        );
         const json = await res.json();
 
         if (!cancelled) {
@@ -140,6 +141,7 @@ function useWeather() {
 
     fetchWeather();
     const id = setInterval(fetchWeather, CONFIG.weather.refreshMs);
+
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -175,7 +177,10 @@ function makeDemoSeries() {
   return hours.map((h) => {
     const wave = Math.sin(h / 3.1) * 160;
     const spike = h > 17 && h < 22 ? 220 : 0;
-    const total = Math.max(150, Math.round(850 + wave + spike + Math.random() * 50));
+    const total = Math.max(
+      150,
+      Math.round(850 + wave + spike + Math.random() * 50)
+    );
     const blocked = Math.round(total * (0.18 + Math.random() * 0.08));
     return {
       hour: `${String(h).padStart(2, "0")}:00`,
@@ -189,7 +194,7 @@ function makeDemoSeries() {
 function useAdGuardStats() {
   const [series, setSeries] = useState(makeDemoSeries());
   const [summary, setSummary] = useState({ total: 0, blocked: 0, ratio: 0 });
-  const [status, setStatus] = useState("Loading AdGuard");
+  const [status, setStatus] = useState("Loading");
 
   useEffect(() => {
     let cancelled = false;
@@ -213,9 +218,14 @@ function useAdGuardStats() {
         const ratio = total ? (blocked / total) * 100 : 0;
 
         let nextSeries = makeDemoSeries();
-        if (Array.isArray(historyJson.dns_queries) && Array.isArray(historyJson.blocked_filtering)) {
+
+        if (
+          Array.isArray(historyJson.dns_queries) &&
+          Array.isArray(historyJson.blocked_filtering)
+        ) {
           const dnsQueries = historyJson.dns_queries.slice(-24);
           const blockedQueries = historyJson.blocked_filtering.slice(-24);
+
           nextSeries = dnsQueries.map((val, idx) => {
             const t = Number(val ?? 0);
             const b = Number(blockedQueries[idx] ?? 0);
@@ -232,12 +242,15 @@ function useAdGuardStats() {
         setSummary({ total, blocked, ratio });
         setStatus("Live");
       } catch {
-        if (!cancelled) setStatus("Demo");
+        if (!cancelled) {
+          setStatus("Fallback");
+        }
       }
     };
 
     pull();
     const id = setInterval(pull, CONFIG.adguard.refreshMs);
+
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -259,16 +272,45 @@ function useMarketData() {
         const res = await fetch("/api/markets/quotes");
         if (!res.ok) throw new Error("Quotes unavailable");
         const json = await res.json();
+
         if (!cancelled && Array.isArray(json.assets)) {
           setAssets(json.assets);
         }
       } catch {
         if (!cancelled) {
           setAssets([
-            { key: "sp500", label: "S&P 500", price: 5238.1, changePercent: 0.42, suffix: "USD", asOf: "Demo" },
-            { key: "ta125", label: "TA-125", price: 2014.6, changePercent: -0.18, suffix: "ILS", asOf: "Demo" },
-            { key: "gold", label: "Gold", price: 2198.4, changePercent: 0.33, suffix: "USD", asOf: "Demo" },
-            { key: "btc", label: "Bitcoin", price: 68240.0, changePercent: 1.4, suffix: "USD", asOf: "Demo" },
+            {
+              key: "sp500",
+              label: "S&P 500",
+              price: 5238.1,
+              changePercent: 0.42,
+              suffix: "USD",
+              asOf: "Fallback",
+            },
+            {
+              key: "ta125",
+              label: "TA-125",
+              price: 2014.6,
+              changePercent: -0.18,
+              suffix: "ILS",
+              asOf: "Fallback",
+            },
+            {
+              key: "gold",
+              label: "Gold",
+              price: 2198.4,
+              changePercent: 0.33,
+              suffix: "USD",
+              asOf: "Fallback",
+            },
+            {
+              key: "btc",
+              label: "Bitcoin",
+              price: 68240.0,
+              changePercent: 1.4,
+              suffix: "USD",
+              asOf: "Fallback",
+            },
           ]);
         }
       }
@@ -276,6 +318,7 @@ function useMarketData() {
 
     pull();
     const refreshId = setInterval(pull, CONFIG.market.refreshMs);
+
     return () => {
       cancelled = true;
       clearInterval(refreshId);
@@ -286,6 +329,7 @@ function useMarketData() {
     const id = setInterval(() => {
       setIndex((prev) => (assets.length ? (prev + 1) % assets.length : 0));
     }, CONFIG.market.rotateMs);
+
     return () => clearInterval(id);
   }, [assets.length]);
 
@@ -294,7 +338,12 @@ function useMarketData() {
 }
 
 function useStreamioStatus() {
-  const [data, setData] = useState({ status: "Checking", quality: "Unknown", mbps: 0, responseMs: 0 });
+  const [data, setData] = useState({
+    status: "Checking",
+    quality: "Unknown",
+    mbps: 0,
+    responseMs: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -306,12 +355,20 @@ function useStreamioStatus() {
         const json = await res.json();
         if (!cancelled) setData(json);
       } catch {
-        if (!cancelled) setData({ status: "Down", quality: "Unknown", mbps: 0, responseMs: 0 });
+        if (!cancelled) {
+          setData({
+            status: "Down",
+            quality: "Unknown",
+            mbps: 0,
+            responseMs: 0,
+          });
+        }
       }
     };
 
     pull();
     const id = setInterval(pull, CONFIG.streamio.refreshMs);
+
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -324,78 +381,106 @@ function useStreamioStatus() {
 function pickTheme(hour, weatherCode) {
   const rainy = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(weatherCode);
   const cloudy = [1, 2, 3, 45, 48].includes(weatherCode);
+  const clear = weatherCode === 0;
 
-  if (hour >= 5 && hour < 11) {
-    return rainy
-      ? "bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.20),_transparent_32%),linear-gradient(180deg,_#0f172a_0%,_#1e293b_55%,_#0f172a_100%)]"
-      : cloudy
-        ? "bg-[radial-gradient(circle_at_top_left,_rgba(148,163,184,0.18),_transparent_32%),linear-gradient(180deg,_#172554_0%,_#1e3a8a_52%,_#0f172a_100%)]"
-        : "bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),_transparent_26%),linear-gradient(180deg,_#1e3a8a_0%,_#0f172a_100%)]";
+  if (hour >= 5 && hour < 10) {
+    if (rainy) {
+      return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.22),_transparent_28%),linear-gradient(180deg,_#334155_0%,_#1e293b_45%,_#0f172a_100%)]";
+    }
+    if (cloudy) {
+      return "bg-[radial-gradient(circle_at_top,_rgba(191,219,254,0.16),_transparent_30%),linear-gradient(180deg,_#475569_0%,_#334155_42%,_#0f172a_100%)]";
+    }
+    if (clear) {
+      return "bg-[radial-gradient(circle_at_top,_rgba(253,224,71,0.28),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.18),_transparent_24%),linear-gradient(180deg,_#2563eb_0%,_#1d4ed8_36%,_#0f172a_100%)]";
+    }
   }
 
-  if (hour >= 11 && hour < 18) {
-    return rainy
-      ? "bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_28%),linear-gradient(180deg,_#0f172a_0%,_#1e293b_50%,_#111827_100%)]"
-      : cloudy
-        ? "bg-[radial-gradient(circle_at_top_left,_rgba(148,163,184,0.18),_transparent_30%),linear-gradient(180deg,_#0f172a_0%,_#1f2937_48%,_#020617_100%)]"
-        : "bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(251,191,36,0.16),_transparent_26%),linear-gradient(180deg,_#082f49_0%,_#0f172a_100%)]";
+  if (hour >= 10 && hour < 17) {
+    if (rainy) {
+      return "bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_28%),linear-gradient(180deg,_#1e293b_0%,_#0f172a_100%)]";
+    }
+    if (cloudy) {
+      return "bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.16),_transparent_28%),linear-gradient(180deg,_#334155_0%,_#1f2937_44%,_#0f172a_100%)]";
+    }
+    if (clear) {
+      return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.18),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.18),_transparent_24%),linear-gradient(180deg,_#0f766e_0%,_#0f172a_100%)]";
+    }
   }
 
-  if (hour >= 18 && hour < 21) {
-    return rainy
-      ? "bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.14),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.12),_transparent_28%),linear-gradient(180deg,_#1e293b_0%,_#0f172a_100%)]"
-      : "bg-[radial-gradient(circle_at_top_left,_rgba(251,146,60,0.20),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.16),_transparent_26%),linear-gradient(180deg,_#312e81_0%,_#0f172a_100%)]";
+  if (hour >= 17 && hour < 20) {
+    if (rainy) {
+      return "bg-[radial-gradient(circle_at_top,_rgba(125,211,252,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.10),_transparent_24%),linear-gradient(180deg,_#1e293b_0%,_#0f172a_100%)]";
+    }
+    return "bg-[radial-gradient(circle_at_top,_rgba(251,146,60,0.24),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(244,114,182,0.16),_transparent_24%),linear-gradient(180deg,_#312e81_0%,_#0f172a_100%)]";
   }
 
-  return rainy
-    ? "bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.14),_transparent_30%),linear-gradient(180deg,_#020617_0%,_#111827_50%,_#0f172a_100%)]"
-    : "bg-[radial-gradient(circle_at_top_left,_rgba(129,140,248,0.16),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.10),_transparent_24%),linear-gradient(180deg,_#020617_0%,_#0f172a_55%,_#111827_100%)]";
+  if (rainy) {
+    return "bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.14),_transparent_28%),linear-gradient(180deg,_#111827_0%,_#020617_100%)]";
+  }
+
+  return "bg-[radial-gradient(circle_at_top,_rgba(129,140,248,0.18),_transparent_26%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.10),_transparent_24%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]";
 }
 
 function WeatherIcon({ code, hour }) {
   const night = hour >= 19 || hour < 6;
-  if ([51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(code)) return <CloudDrizzle className="h-5 w-5" />;
+  if ([51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(code)) {
+    return <CloudDrizzle className="h-5 w-5" />;
+  }
   if (night) return <CloudMoon className="h-5 w-5" />;
   if (code === 0) return <Sun className="h-5 w-5" />;
   return <CloudSun className="h-5 w-5" />;
 }
 
 function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
-  const toneClass = tone === "good"
-    ? "text-emerald-300"
-    : tone === "warn"
-      ? "text-amber-300"
-      : tone === "bad"
-        ? "text-rose-300"
-        : "text-white";
+  const toneClass =
+    tone === "good"
+      ? "text-emerald-300"
+      : tone === "warn"
+        ? "text-amber-300"
+        : tone === "bad"
+          ? "text-rose-300"
+          : "text-white";
 
   return (
     <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
-      <div className="mb-3 flex items-center gap-2 text-white/65">
+      <div className="mb-2 flex items-center gap-2 text-white/65">
         <Icon className="h-4 w-4" />
         <span className="text-xs uppercase tracking-[0.22em]">{title}</span>
       </div>
-      <div className={`text-3xl font-semibold tracking-tight ${toneClass}`}>{value}</div>
+      <div className={`text-3xl font-semibold tracking-tight ${toneClass}`}>
+        {value}
+      </div>
       <div className="mt-2 text-sm text-white/50">{hint}</div>
     </div>
   );
 }
 
 function GraphPanel({ data, status }) {
+  const badgeClass =
+    status === "Live"
+      ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+      : "border-amber-400/20 bg-amber-400/10 text-amber-200";
+
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-sm">
-      <div className="mb-4 flex items-start justify-between gap-4">
+    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
+      <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-white">
             <LineChart className="h-4 w-4" />
             AdGuard analytics
           </div>
-          <div className="mt-1 text-sm text-white/55">Allowed vs blocked DNS activity for the last 24 hours</div>
+          <div className="mt-1 text-sm text-white/55">
+            Allowed vs blocked DNS activity for the last 24 hours
+          </div>
         </div>
-        <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">{status}</div>
+        <div
+          className={`rounded-full border px-3 py-1 text-xs ${badgeClass}`}
+        >
+          {status}
+        </div>
       </div>
 
-      <div className="h-[330px] w-full">
+      <div className="h-[250px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
@@ -408,9 +493,22 @@ function GraphPanel({ data, status }) {
                 <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-            <XAxis dataKey="hour" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }} tickLine={false} axisLine={false} width={46} />
+            <CartesianGrid
+              stroke="rgba(255,255,255,0.08)"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="hour"
+              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={42}
+            />
             <Tooltip
               contentStyle={{
                 background: "rgba(15,23,42,0.95)",
@@ -419,8 +517,20 @@ function GraphPanel({ data, status }) {
                 color: "white",
               }}
             />
-            <Area type="monotone" dataKey="allowed" stroke="#38bdf8" strokeWidth={2.2} fill="url(#allowedFill)" />
-            <Area type="monotone" dataKey="blocked" stroke="#fb7185" strokeWidth={2.2} fill="url(#blockedFill)" />
+            <Area
+              type="monotone"
+              dataKey="allowed"
+              stroke="#38bdf8"
+              strokeWidth={2.2}
+              fill="url(#allowedFill)"
+            />
+            <Area
+              type="monotone"
+              dataKey="blocked"
+              stroke="#fb7185"
+              strokeWidth={2.2}
+              fill="url(#blockedFill)"
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -431,7 +541,7 @@ function GraphPanel({ data, status }) {
 function MarketRotator({ asset, index, count }) {
   if (!asset) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-sm">
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
         <div className="text-sm text-white/60">Loading market data</div>
       </div>
     );
@@ -440,28 +550,74 @@ function MarketRotator({ asset, index, count }) {
   const positive = Number(asset.changePercent) >= 0;
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-sm">
+    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-white/45">Market pulse</div>
-          <div className="mt-2 text-3xl font-semibold tracking-tight text-white">{asset.label}</div>
-          <div className="mt-2 text-sm text-white/55">Rotates every 10 seconds · refreshes every 16 minutes</div>
+          <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+            Market pulse
+          </div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-white">
+            {asset.label}
+          </div>
+          <div className="mt-2 text-sm text-white/55">
+            Rotates every 10 seconds · refreshes every 16 minutes
+          </div>
         </div>
         <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
           {index + 1}/{count}
         </div>
       </div>
 
-      <div className="mt-8 flex items-end justify-between gap-6">
+      <div className="mt-6 flex items-end justify-between gap-6">
         <div>
           <div className="text-5xl font-semibold tracking-tight text-white">
-            {Number(asset.price).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {Number(asset.price).toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}
           </div>
-          <div className="mt-2 text-sm text-white/50">{asset.suffix} · updated {asset.asOf}</div>
+          <div className="mt-2 text-sm text-white/50">
+            {asset.suffix} · updated {asset.asOf}
+          </div>
         </div>
-        <div className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-lg font-medium ${positive ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>
-          {positive ? <ArrowUpCircle className="h-5 w-5" /> : <ArrowDownCircle className="h-5 w-5" />}
-          {positive ? "+" : ""}{Number(asset.changePercent).toFixed(2)}%
+        <div
+          className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-lg font-medium ${
+            positive
+              ? "bg-emerald-500/15 text-emerald-300"
+              : "bg-rose-500/15 text-rose-300"
+          }`}
+        >
+          {positive ? (
+            <ArrowUpCircle className="h-5 w-5" />
+          ) : (
+            <ArrowDownCircle className="h-5 w-5" />
+          )}
+          {positive ? "+" : ""}
+          {Number(asset.changePercent).toFixed(2)}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClockTile({ time, date }) {
+  return (
+    <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-sm">
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <div className="text-xs uppercase tracking-[0.28em] text-sky-200/80">
+            MacBook server kiosk
+          </div>
+        </div>
+
+        <div className="text-right">
+          <div className="flex items-center justify-end gap-2 text-xs uppercase tracking-[0.24em] text-white/45">
+            <MoonStar className="h-4 w-4" />
+            Local time
+          </div>
+          <div className="mt-2 text-5xl font-semibold tracking-tight text-white">
+            {time}
+          </div>
+          <div className="mt-2 text-sm text-white/55">{date}</div>
         </div>
       </div>
     </div>
@@ -475,119 +631,173 @@ export default function ServerKioskDashboard() {
   const market = useMarketData();
   const streamio = useStreamioStatus();
 
-  const blockedPercent = useMemo(() => `${summary.ratio.toFixed(1)}%`, [summary.ratio]);
-  const themeClass = useMemo(() => pickTheme(hour, weather.code), [hour, weather.code]);
+  const blockedPercent = useMemo(
+    () => `${summary.ratio.toFixed(1)}%`,
+    [summary.ratio]
+  );
+  const themeClass = useMemo(
+    () => pickTheme(hour, weather.code),
+    [hour, weather.code]
+  );
 
-  const streamTone = streamio.status !== "Up"
-    ? "bad"
-    : streamio.quality.includes("HDR")
-      ? "good"
-      : streamio.quality.includes("4K")
+  const streamTone =
+    streamio.status !== "Up"
+      ? "bad"
+      : streamio.quality.includes("HDR")
         ? "good"
-        : streamio.quality.includes("1080")
-          ? "warn"
-          : "warn";
+        : streamio.quality.includes("4K")
+          ? "good"
+          : streamio.quality.includes("1080")
+            ? "warn"
+            : "warn";
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className={`min-h-screen px-5 py-5 lg:px-6 lg:py-6 ${themeClass}`}>
-        <div className="mx-auto flex h-full max-w-[1600px] flex-col gap-5">
-          <header className="grid grid-cols-1 gap-5 xl:grid-cols-[1.35fr_1fr]">
-            <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-sm">
-              <div className="flex items-start justify-between gap-6">
-                <div>
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.28em] text-sky-200/80">
-                    <Server className="h-4 w-4" />
-                    MacBook server kiosk
-                  </div>
-                  <h1 className="mt-4 text-5xl font-semibold tracking-tight text-white lg:text-6xl">Operations Wallboard</h1>
-                  <p className="mt-3 max-w-2xl text-base text-white/60 lg:text-lg">
-                    Live weather, rotating markets, AdGuard analytics, and Stremio health in a kiosk layout tuned for a 13.3&quot; Retina display.
-                  </p>
-                </div>
-                <div className="hidden text-right lg:block">
-                  <div className="flex items-center justify-end gap-2 text-xs uppercase tracking-[0.24em] text-white/45">
-                    <MoonStar className="h-4 w-4" />
-                    Local time
-                  </div>
-                  <div className="mt-3 text-5xl font-semibold tracking-tight">{time}</div>
-                  <div className="mt-2 text-sm text-white/55">{date}</div>
-                </div>
-              </div>
-            </div>
+    <div className="h-screen overflow-hidden bg-slate-950 text-white">
+      <div className={`h-screen overflow-hidden px-4 py-4 lg:px-5 lg:py-5 ${themeClass}`}>
+        <div className="mx-auto flex h-full max-w-[1500px] flex-col gap-4">
+          <header className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_1fr]">
+            <ClockTile time={time} date={date} />
 
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4">
               <StatCard
                 icon={() => <WeatherIcon code={weather.code} hour={hour} />}
                 title="Weather"
                 value={weather.loading ? "--" : `${weather.temp}°C`}
-                hint={weather.loading ? "Fetching Nes Ziona" : `${weather.condition} • feels ${weather.feels}°`}
+                hint={
+                  weather.loading
+                    ? "Fetching Nes Ziona"
+                    : `${weather.condition} · feels ${weather.feels}°`
+                }
               />
-              <StatCard icon={Shield} title="Blocked" value={blockedPercent} hint="Current AdGuard block ratio" />
-              <StatCard icon={Activity} title="Queries" value={summary.total.toLocaleString()} hint="Total DNS queries" />
+              <StatCard
+                icon={Shield}
+                title="Blocked"
+                value={blockedPercent}
+                hint="Current AdGuard block ratio"
+              />
+              <StatCard
+                icon={Activity}
+                title="Queries"
+                value={summary.total.toLocaleString()}
+                hint="Total DNS queries"
+              />
               <StatCard
                 icon={Wifi}
                 title="Stremio"
                 value={streamio.status}
-                hint={`${streamio.quality} • ${streamio.mbps ? `${streamio.mbps} Mbps` : "No speed sample"}`}
+                hint={`${
+                  streamio.quality
+                } · ${streamio.mbps ? `${streamio.mbps} Mbps` : "No speed sample"}`}
                 tone={streamTone}
               />
             </div>
           </header>
 
-          <main className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.95fr]">
-            <section className="flex flex-col gap-5">
-              <MarketRotator asset={market.current} index={market.index} count={market.count || 4} />
-              <GraphPanel data={series} status={status} />
+          <main className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[1.18fr_0.95fr]">
+            <section className="flex min-h-0 flex-col gap-4">
+              <MarketRotator
+                asset={market.current}
+                index={market.index}
+                count={market.count || 4}
+              />
+              <div className="min-h-0 flex-1">
+                <GraphPanel data={series} status={status} />
+              </div>
             </section>
 
-            <aside className="grid grid-cols-1 gap-5">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-sm">
+            <aside className="grid min-h-0 grid-cols-1 gap-4">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
                 <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
                   <Gauge className="h-4 w-4" />
                   Weather details
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Location</div>
-                    <div className="mt-2 text-lg font-semibold">{weather.location}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Location
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      {weather.location}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Today</div>
-                    <div className="mt-2 text-lg font-semibold">{weather.loading ? "--" : `${weather.high}° / ${weather.low}°`}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Today
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      {weather.loading ? "--" : `${weather.high}° / ${weather.low}°`}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Humidity</div>
-                    <div className="mt-2 text-lg font-semibold">{weather.loading ? "--" : `${weather.humidity}%`}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Humidity
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      {weather.loading ? "--" : `${weather.humidity}%`}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Wind</div>
-                    <div className="mt-2 text-lg font-semibold">{weather.loading ? "--" : `${weather.wind} km/h`}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Wind
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      {weather.loading ? "--" : `${weather.wind} km/h`}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-sm">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
                 <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
                   <BadgeCheck className="h-4 w-4" />
                   Stremio health tile
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Server</div>
-                    <div className={`mt-2 text-lg font-semibold ${streamio.status === "Up" ? "text-emerald-300" : "text-rose-300"}`}>{streamio.status}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Server
+                    </div>
+                    <div
+                      className={`mt-2 text-lg font-semibold ${
+                        streamio.status === "Up"
+                          ? "text-emerald-300"
+                          : "text-rose-300"
+                      }`}
+                    >
+                      {streamio.status}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Profile</div>
-                    <div className={`mt-2 text-lg font-semibold ${streamTone === "good" ? "text-emerald-300" : streamTone === "warn" ? "text-amber-300" : "text-rose-300"}`}>{streamio.quality}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Profile
+                    </div>
+                    <div
+                      className={`mt-2 text-lg font-semibold ${
+                        streamTone === "good"
+                          ? "text-emerald-300"
+                          : streamTone === "warn"
+                            ? "text-amber-300"
+                            : "text-rose-300"
+                      }`}
+                    >
+                      {streamio.quality}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Speed sample</div>
-                    <div className="mt-2 text-lg font-semibold">{streamio.mbps ? `${streamio.mbps} Mbps` : "--"}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Speed sample
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      {streamio.mbps ? `${streamio.mbps} Mbps` : "--"}
+                    </div>
                   </div>
                   <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">Response</div>
-                    <div className="mt-2 text-lg font-semibold">{streamio.responseMs ? `${streamio.responseMs} ms` : "--"}</div>
+                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                      Response
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      {streamio.responseMs ? `${streamio.responseMs} ms` : "--"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -598,3 +808,5 @@ export default function ServerKioskDashboard() {
     </div>
   );
 }
+
+
