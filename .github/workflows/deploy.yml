@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout
@@ -17,45 +17,36 @@ jobs:
         with:
           node-version: 20
 
+      - name: Sync repo into app directory
+        run: |
+          mkdir -p /Users/eranmanolio/apps/server-dashboard
+          rsync -az --delete ./ /Users/eranmanolio/apps/server-dashboard/
+
       - name: Install frontend dependencies
         run: |
-          cd frontend
+          cd /Users/eranmanolio/apps/server-dashboard/frontend
           npm ci
 
       - name: Build frontend
         run: |
-          cd frontend
+          cd /Users/eranmanolio/apps/server-dashboard/frontend
           npm run build
 
-      - name: Setup SSH key
+      - name: Install backend dependencies
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          cd /Users/eranmanolio/apps/server-dashboard/backend
+          npm ci --omit=dev
 
-      - name: Create target folders
+      - name: Install launchd plist
         run: |
-          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "mkdir -p /Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/frontend/dist /Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/backend /Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/deploy ~/Library/LaunchAgents"
+          mkdir -p ~/Library/LaunchAgents
+          cp /Users/eranmanolio/apps/server-dashboard/deploy/com.eran.dashboard.plist ~/Library/LaunchAgents/com.eran.dashboard.plist
 
-      - name: Sync files to target
+      - name: Restart dashboard service
         run: |
-          rsync -az --delete frontend/dist/ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/frontend/dist/"
-          rsync -az backend/ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/backend/"
-          rsync -az deploy/ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/deploy/"
-
-      - name: Install backend dependencies on target
-        run: |
-          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "cd /Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/backend && npm ci --omit=dev"
-
-      - name: Install and restart launchd service
-        run: |
-          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" '
-            cp /Users/${{ secrets.DEPLOY_USER }}/apps/server-dashboard/deploy/com.eran.dashboard.plist ~/Library/LaunchAgents/com.eran.dashboard.plist &&
-            launchctl unload ~/Library/LaunchAgents/com.eran.dashboard.plist 2>/dev/null || true &&
-            launchctl load ~/Library/LaunchAgents/com.eran.dashboard.plist
-          '
+          launchctl unload ~/Library/LaunchAgents/com.eran.dashboard.plist 2>/dev/null || true
+          launchctl load ~/Library/LaunchAgents/com.eran.dashboard.plist
 
       - name: Health check
         run: |
-          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "curl -s http://127.0.0.1:8787/health"
+          curl -s http://127.0.0.1:8787/health
