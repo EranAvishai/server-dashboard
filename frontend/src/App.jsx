@@ -441,15 +441,17 @@ function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
           : "text-white";
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-3 shadow-2xl backdrop-blur-sm">
+    <div className="flex min-h-[138px] flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-3 text-center shadow-2xl backdrop-blur-sm">
       <div className="mb-2 flex items-center gap-2 text-white/65">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] uppercase tracking-[0.24em]">{title}</span>
       </div>
-      <div className={`text-2xl font-semibold tracking-tight ${toneClass}`}>
+      <div className={`text-[2.25rem] font-bold leading-none tracking-tight ${toneClass}`}>
         {value}
       </div>
-      <div className="mt-1.5 text-xs text-white/50">{hint}</div>
+      <div className="mt-2 max-w-[90%] text-sm font-semibold text-white/75">
+        {hint}
+      </div>
     </div>
   );
 }
@@ -464,20 +466,20 @@ function GraphPanel({ data, status }) {
     <div className="h-full rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-white">
+          <div className="flex items-center gap-2 text-base font-semibold text-white">
             <LineChart className="h-4 w-4" />
             AdGuard analytics
           </div>
-          <div className="mt-1 text-xs text-white/55">
+          <div className="mt-1 text-sm font-medium text-white/65">
             Allowed vs blocked DNS activity for the last 24 hours
           </div>
         </div>
-        <div className={`rounded-full border px-3 py-1 text-xs ${badgeClass}`}>
+        <div className={`rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}>
           {status}
         </div>
       </div>
 
-      <div className="h-[215px] w-full">
+      <div className="h-[230px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
@@ -493,15 +495,15 @@ function GraphPanel({ data, status }) {
             <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
             <XAxis
               dataKey="hour"
-              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 10 }}
+              tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 10 }}
+              tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }}
               tickLine={false}
               axisLine={false}
-              width={38}
+              width={42}
             />
             <Tooltip
               contentStyle={{
@@ -515,14 +517,14 @@ function GraphPanel({ data, status }) {
               type="monotone"
               dataKey="allowed"
               stroke="#38bdf8"
-              strokeWidth={2.2}
+              strokeWidth={2.4}
               fill="url(#allowedFill)"
             />
             <Area
               type="monotone"
               dataKey="blocked"
               stroke="#fb7185"
-              strokeWidth={2.2}
+              strokeWidth={2.4}
               fill="url(#blockedFill)"
             />
           </AreaChart>
@@ -550,44 +552,57 @@ function MarketRotator({ asset, index, count }) {
           <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
             Market pulse
           </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-white">
+          <div className="mt-2 text-3xl font-bold tracking-tight text-white">
             {asset.label}
           </div>
-          <div className="mt-2 text-xs text-white/55">
+          <div className="mt-2 text-sm font-semibold text-white/65">
             Rotates every 10 seconds · refreshes every 16 minutes
           </div>
         </div>
-        <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70">
+        <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-white/75">
           {index + 1}/{count}
         </div>
       </div>
 
-      <div className="mt-5 flex items-end justify-between gap-6">
+      <div className="mt-6 flex items-end justify-between gap-6">
         <div>
-          <div className="text-5xl font-semibold tracking-tight text-white">
+          <div className="text-[4rem] font-bold leading-none tracking-tight text-white">
             {Number(asset.price).toLocaleString(undefined, {
               maximumFractionDigits: 2,
             })}
           </div>
-          <div className="mt-2 text-sm text-white/50">
+          <div className="mt-2 text-base font-semibold text-white/70">
             {asset.suffix} · updated {asset.asOf}
           </div>
         </div>
         <div
-          className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-lg font-medium ${
+          className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-2xl font-bold ${
             positive
               ? "bg-emerald-500/15 text-emerald-300"
               : "bg-rose-500/15 text-rose-300"
           }`}
         >
           {positive ? (
-            <ArrowUpCircle className="h-5 w-5" />
+            <ArrowUpCircle className="h-6 w-6" />
           ) : (
-            <ArrowDownCircle className="h-5 w-5" />
+            <ArrowDownCircle className="h-6 w-6" />
           )}
           {positive ? "+" : ""}
           {Number(asset.changePercent).toFixed(2)}%
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailValueTile({ label, value }) {
+  return (
+    <div className="flex min-h-[110px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
+      <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
+        {label}
+      </div>
+      <div className="mt-3 text-[1.9rem] font-bold leading-tight text-white">
+        {value}
       </div>
     </div>
   );
@@ -604,10 +619,10 @@ function ClockTile({ time, date }) {
           <MoonStar className="h-3.5 w-3.5" />
           Local time
         </div>
-        <div className="mt-2 text-[4.4rem] font-semibold leading-none tracking-tight text-white">
+        <div className="mt-3 text-[5.1rem] font-bold leading-none tracking-tight text-white">
           {time}
         </div>
-        <div className="mt-2 text-sm text-white/55">{date}</div>
+        <div className="mt-3 text-xl font-semibold text-white/70">{date}</div>
       </div>
     </div>
   );
@@ -694,98 +709,43 @@ export default function ServerKioskDashboard() {
 
             <aside className="grid min-h-0 grid-cols-1 gap-4">
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
-                <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
+                <div className="mb-4 flex items-center gap-2 text-base font-semibold text-white">
                   <Gauge className="h-4 w-4" />
                   Weather details
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Location
-                    </div>
-                    <div className="mt-2 text-lg font-semibold">
-                      {weather.location}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Today
-                    </div>
-                    <div className="mt-2 text-lg font-semibold">
-                      {weather.loading ? "--" : `${weather.high}° / ${weather.low}°`}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Humidity
-                    </div>
-                    <div className="mt-2 text-lg font-semibold">
-                      {weather.loading ? "--" : `${weather.humidity}%`}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Wind
-                    </div>
-                    <div className="mt-2 text-lg font-semibold">
-                      {weather.loading ? "--" : `${weather.wind} km/h`}
-                    </div>
-                  </div>
+                  <DetailValueTile label="Location" value={weather.location} />
+                  <DetailValueTile
+                    label="Today"
+                    value={weather.loading ? "--" : `${weather.high}° / ${weather.low}°`}
+                  />
+                  <DetailValueTile
+                    label="Humidity"
+                    value={weather.loading ? "--" : `${weather.humidity}%`}
+                  />
+                  <DetailValueTile
+                    label="Wind"
+                    value={weather.loading ? "--" : `${weather.wind} km/h`}
+                  />
                 </div>
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur-sm">
-                <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
+                <div className="mb-4 flex items-center gap-2 text-base font-semibold text-white">
                   <BadgeCheck className="h-4 w-4" />
                   Stremio health tile
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Server
-                    </div>
-                    <div
-                      className={`mt-2 text-lg font-semibold ${
-                        streamio.status === "Up"
-                          ? "text-emerald-300"
-                          : "text-rose-300"
-                      }`}
-                    >
-                      {streamio.status}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Profile
-                    </div>
-                    <div
-                      className={`mt-2 text-lg font-semibold ${
-                        streamTone === "good"
-                          ? "text-emerald-300"
-                          : streamTone === "warn"
-                            ? "text-amber-300"
-                            : "text-rose-300"
-                      }`}
-                    >
-                      {streamio.quality}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Speed sample
-                    </div>
-                    <div className="mt-2 text-lg font-semibold">
-                      {streamio.mbps ? `${streamio.mbps} Mbps` : "--"}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-black/20 p-4">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                      Response
-                    </div>
-                    <div className="mt-2 text-lg font-semibold">
-                      {streamio.responseMs ? `${streamio.responseMs} ms` : "--"}
-                    </div>
-                  </div>
+                  <DetailValueTile label="Server" value={streamio.status} />
+                  <DetailValueTile label="Profile" value={streamio.quality} />
+                  <DetailValueTile
+                    label="Speed sample"
+                    value={streamio.mbps ? `${streamio.mbps} Mbps` : "--"}
+                  />
+                  <DetailValueTile
+                    label="Response"
+                    value={streamio.responseMs ? `${streamio.responseMs} ms` : "--"}
+                  />
                 </div>
               </div>
             </aside>
