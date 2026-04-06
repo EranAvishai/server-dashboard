@@ -453,9 +453,7 @@ function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] uppercase tracking-[0.24em]">{title}</span>
       </div>
-      <div
-        className={`text-[2rem] font-bold leading-none tracking-tight ${toneClass}`}
-      >
+      <div className={`text-[2rem] font-bold leading-none tracking-tight ${toneClass}`}>
         {value}
       </div>
       <div className="mt-2 max-w-[92%] text-sm font-semibold text-white/75">
