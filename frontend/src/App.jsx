@@ -125,7 +125,7 @@ function useWeather() {
         });
 
         const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?${params.toString()}`
+          `https://api.open-meteo.com/v1/forecast?${params.toString()}`,
         );
         const json = await res.json();
 
@@ -178,7 +178,7 @@ function makeDemoSeries() {
     const spike = h > 17 && h < 22 ? 220 : 0;
     const total = Math.max(
       150,
-      Math.round(850 + wave + spike + Math.random() * 50)
+      Math.round(850 + wave + spike + Math.random() * 50),
     );
     const blocked = Math.round(total * (0.18 + Math.random() * 0.08));
     return {
@@ -453,7 +453,9 @@ function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] uppercase tracking-[0.24em]">{title}</span>
       </div>
-      <div className={`text-[2rem] font-bold leading-none tracking-tight ${toneClass}`}>
+      <div
+        className={`text-[2rem] font-bold leading-none tracking-tight ${toneClass}`}
+      >
         {value}
       </div>
       <div className="mt-2 max-w-[92%] text-sm font-semibold text-white/75">
@@ -481,14 +483,19 @@ function GraphPanel({ data, status }) {
             Allowed vs blocked DNS activity for the last 24 hours
           </div>
         </div>
-        <div className={`rounded-full border px-3 py-1 text-xs font-bold ${badgeClass}`}>
+        <div
+          className={`rounded-full border px-3 py-1 text-xs font-bold ${badgeClass}`}
+        >
           {status}
         </div>
       </div>
 
       <div className="h-[190px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
+          <AreaChart
+            data={data}
+            margin={{ top: 8, right: 4, left: -18, bottom: 0 }}
+          >
             <defs>
               <linearGradient id="blockedFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#fb7185" stopOpacity={0.55} />
@@ -638,39 +645,45 @@ function StreamioTile({ streamio }) {
       : "0 Mbps";
 
   return (
-    <div className={`rounded-3xl border p-3 shadow-2xl backdrop-blur-sm ${stableClass}`}>
-      <div className={`mb-3 rounded-2xl border px-4 py-3 text-center ${bandClass}`}>
+    <div
+      className={`rounded-3xl border p-3 shadow-2xl backdrop-blur-sm ${stableClass}`}
+    >
+      <div
+        className={`mb-3 rounded-2xl border px-4 py-3 text-center ${bandClass}`}
+      >
         <div className="text-[10px] uppercase tracking-[0.24em]">
           Stream stability
         </div>
-        <div className="mt-1 text-2xl font-bold">
-          {sessionLabel}
-        </div>
+        <div className="mt-1 text-2xl font-bold">{sessionLabel}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
+        <div className="flex min-h-[124px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
           <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
             Quality
           </div>
-          <div className="mt-3 text-[2.25rem] font-bold leading-none text-white">
+          <div className="mt-3 text-[2.4rem] font-bold leading-none text-white">
             {streamio.overallProfile}
           </div>
         </div>
 
-        <div className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
+        <div className="flex min-h-[124px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
           <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
             Torrent in
           </div>
-          <div className="mt-3 text-[2.1rem] font-bold leading-none text-white">
+          <div className="mt-3 text-[2.2rem] font-bold leading-none text-white">
             {torrentIn}
           </div>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <DetailValueTile label="Peers" value={String(streamio.externalConnections)} />
-        <DetailValueTile label="Session" value={sessionLabel} />
+      <div className="mt-3 rounded-2xl bg-black/20 px-4 py-3 text-center">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
+          Summary
+        </div>
+        <div className="mt-2 text-lg font-bold text-white">
+          {sessionLabel} · {streamio.overallProfile}
+        </div>
       </div>
     </div>
   );
@@ -705,23 +718,24 @@ export default function ServerKioskDashboard() {
 
   const blockedPercent = useMemo(
     () => `${summary.ratio.toFixed(1)}%`,
-    [summary.ratio]
+    [summary.ratio],
   );
   const themeClass = useMemo(
     () => pickTheme(hour, weather.code),
-    [hour, weather.code]
+    [hour, weather.code],
   );
 
-  const streamTone =
-    streamio.stable
-      ? "good"
-      : streamio.tvActive
-        ? "warn"
-        : "bad";
+  const streamTone = streamio.stable
+    ? "good"
+    : streamio.tvActive
+      ? "warn"
+      : "bad";
 
   return (
     <div className="h-screen overflow-hidden bg-slate-950 text-white">
-      <div className={`h-screen overflow-hidden px-3 py-3 lg:px-4 lg:py-4 ${themeClass}`}>
+      <div
+        className={`h-screen overflow-hidden px-3 py-3 lg:px-4 lg:py-4 ${themeClass}`}
+      >
         <div className="mx-auto flex h-full max-w-[1500px] flex-col gap-3">
           <header className="grid grid-cols-1 gap-3 xl:grid-cols-[0.72fr_1.28fr]">
             <ClockTile time={time} date={date} />
@@ -752,7 +766,13 @@ export default function ServerKioskDashboard() {
               <StatCard
                 icon={Wifi}
                 title="TV / Stream"
-                value={streamio.stable ? "Stable" : streamio.tvActive ? "Active" : "Idle"}
+                value={
+                  streamio.stable
+                    ? "Stable"
+                    : streamio.tvActive
+                      ? "Active"
+                      : "Idle"
+                }
                 hint={`${streamio.overallProfile} · ${streamio.externalMbps || 0} Mbps`}
                 tone={streamTone}
               />
@@ -780,7 +800,11 @@ export default function ServerKioskDashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   <DetailValueTile
                     label="Today"
-                    value={weather.loading ? "--" : `${weather.high}° / ${weather.low}°`}
+                    value={
+                      weather.loading
+                        ? "--"
+                        : `${weather.high}° / ${weather.low}°`
+                    }
                   />
                   <DetailValueTile
                     label="Wind"
