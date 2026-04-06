@@ -774,7 +774,9 @@ export default function ServerKioskDashboard() {
                       : "Idle"
                 }
                 hint={`${streamio.overallProfile} · ${streamio.externalMbps || 0} Mbps`}
-                tone={streamTone}
+                tone={
+                  streamio.stable ? "good" : streamio.tvActive ? "warn" : "bad"
+                }
               />
             </div>
           </header>
