@@ -201,11 +201,9 @@ function useAdGuardStats() {
     const pull = async () => {
       try {
         const statsRes = await fetch("/api/adguard/stats");
-
         if (!statsRes.ok) throw new Error("API unreachable");
 
         const statsJson = await statsRes.json();
-
         if (cancelled) return;
 
         const total = Number(statsJson.num_dns_queries ?? 0);
@@ -618,17 +616,17 @@ function DetailValueTile({ label, value }) {
 }
 
 function StreamioTile({ streamio }) {
-  const tileClass = streamio.stable
-    ? "border-cyan-300/30 bg-cyan-300/10"
+  const stableClass = streamio.stable
+    ? "border-cyan-300/30 bg-cyan-300/12"
     : "border-white/10 bg-white/5";
 
-  const sessionLabel = streamio.stable
-    ? "Stable"
+  const bandClass = streamio.stable
+    ? "bg-cyan-300/20 text-cyan-100 border-cyan-300/30"
     : streamio.tvActive
-      ? "Active"
-      : "Idle";
+      ? "bg-amber-300/15 text-amber-100 border-amber-300/25"
+      : "bg-white/5 text-white/70 border-white/10";
 
-  const sessionValue = streamio.stable
+  const sessionLabel = streamio.stable
     ? "Stable"
     : streamio.tvActive
       ? "Active"
@@ -640,26 +638,39 @@ function StreamioTile({ streamio }) {
       : "0 Mbps";
 
   return (
-    <div className={`rounded-3xl border p-3 shadow-2xl backdrop-blur-sm ${tileClass}`}>
-      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-        <Wifi className="h-4 w-4" />
-        TV / Stremio playback
+    <div className={`rounded-3xl border p-3 shadow-2xl backdrop-blur-sm ${stableClass}`}>
+      <div className={`mb-3 rounded-2xl border px-4 py-3 text-center ${bandClass}`}>
+        <div className="text-[10px] uppercase tracking-[0.24em]">
+          Stream stability
+        </div>
+        <div className="mt-1 text-2xl font-bold">
+          {sessionLabel}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <DetailValueTile label="Session" value={sessionValue} />
-        <DetailValueTile label="Quality" value={streamio.overallProfile} />
-        <DetailValueTile label="Torrent in" value={torrentIn} />
-        <DetailValueTile label="Peers" value={String(streamio.externalConnections)} />
+        <div className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
+          <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
+            Quality
+          </div>
+          <div className="mt-3 text-[2.25rem] font-bold leading-none text-white">
+            {streamio.overallProfile}
+          </div>
+        </div>
+
+        <div className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
+          <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
+            Torrent in
+          </div>
+          <div className="mt-3 text-[2.1rem] font-bold leading-none text-white">
+            {torrentIn}
+          </div>
+        </div>
       </div>
 
-      <div className="mt-3 rounded-2xl bg-black/20 px-4 py-3 text-center">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-          Summary
-        </div>
-        <div className="mt-2 text-lg font-bold text-white">
-          {sessionLabel} · {streamio.overallProfile} · {torrentIn}
-        </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <DetailValueTile label="Peers" value={String(streamio.externalConnections)} />
+        <DetailValueTile label="Session" value={sessionLabel} />
       </div>
     </div>
   );
