@@ -9,14 +9,16 @@ const ADGUARD_BASE = process.env.ADGUARD_BASE || "http://127.0.0.1:3000";
 const ADGUARD_USER = process.env.ADGUARD_USER || "";
 const ADGUARD_PASS = process.env.ADGUARD_PASS || "";
 const STREAMIO_PORT = process.env.STREAMIO_PORT || "11470";
+const TV_IP = process.env.TV_IP || "192.168.1.110";
 
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
 
 let marketCache = { ts: 0, data: null };
-let networkCache = { ts: 0, data: null };
+let externalRateCache = { ts: 0, data: null };
+let lastTvSeenAt = 0;
 
 const MARKET_REFRESH_MS = 16 * 60 * 1000;
-const NETWORK_REFRESH_MS = 30 * 60 * 1000;
+const RATE_CACHE_MS = 15000;
 
 const MARKET_ASSETS = [
   { key: "sp500", label: "S&P 500", symbol: "^GSPC", suffix: "USD" },
@@ -51,7 +53,7 @@ async function fetchJson(url, options = {}) {
   }
 }
 
-function execPromise(command, timeoutMs = 120000) {
+function execPromise(command, timeoutMs = 20000) {
   return new Promise((resolve, reject) => {
     exec(command, { timeout: timeoutMs }, (error, stdout, stderr) => {
       if (error) return reject(error);
@@ -144,89 +146,176 @@ async function getMarketQuotes() {
   return results;
 }
 
-function classifyMbps(mbps) {
-  if (!mbps || Number.isNaN(mbps)) return "Unknown";
-  if (mbps >= 60) return "Good for 4K HDR";
-  if (mbps >= 35) return "Good for 4K";
-  if (mbps >= 8) return "Good for 1080p";
-  return "Below 1080p target";
+function classifyProfile(mbps) {
+  if (!mbps || Number.isNaN(mbps) || mbps < 2) return "Idle";
+  if (mbps >= 60) return "4K HDR";
+  if (mbps >= 30) return "4K";
+  if (mbps >= 8) return "1080p";
+  return "Low bitrate";
 }
 
-async function getNetworkSample() {
-  if (networkCache.data && Date.now() - networkCache.ts < NETWORK_REFRESH_MS) {
-    return networkCache.data;
+async function getLsofLines() {
+  try {
+    const { stdout } = await execPromise("lsof -nP -iTCP -iUDP", 12000);
+    return stdout.split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function parseConnectionColumns(line) {
+  const parts = line.trim().split(/\s+/);
+  if (parts.length < 9) return null;
+
+  const name = parts[0];
+  const pid = parts[1];
+  const protocol = parts[7];
+  const nameField = parts.slice(8).join(" ");
+
+  return { name, pid, protocol, nameField };
+}
+
+function countTvConnections(lines) {
+  let active = 0;
+  let responseMs = 0;
+
+  for (const line of lines) {
+    if (!line.includes(TV_IP)) continue;
+    if (!line.includes(`:${STREAMIO_PORT}`)) continue;
+    if (!line.includes("ESTABLISHED")) continue;
+    active += 1;
+  }
+
+  if (active > 0) {
+    lastTvSeenAt = Date.now();
+    responseMs = 20;
+  }
+
+  return {
+    active,
+    recent: lastTvSeenAt > 0 ? Math.round((Date.now() - lastTvSeenAt) / 1000) : null,
+    responseMs,
+  };
+}
+
+function countExternalPeerConnections(lines) {
+  let count = 0;
+
+  for (const line of lines) {
+    if (!line.includes("ESTABLISHED")) continue;
+    if (line.includes(`127.0.0.1`)) continue;
+    if (line.includes(TV_IP)) continue;
+    if (line.includes(`:${STREAMIO_PORT}`)) continue;
+    if (line.includes("->192.168.")) continue;
+    if (line.includes("->10.")) continue;
+    if (line.includes("->172.16.")) continue;
+    if (line.includes("->172.17.")) continue;
+    if (line.includes("->172.18.")) continue;
+    if (line.includes("->172.19.")) continue;
+    if (line.includes("->172.20.")) continue;
+    if (line.includes("->172.21.")) continue;
+    if (line.includes("->172.22.")) continue;
+    if (line.includes("->172.23.")) continue;
+    if (line.includes("->172.24.")) continue;
+    if (line.includes("->172.25.")) continue;
+    if (line.includes("->172.26.")) continue;
+    if (line.includes("->172.27.")) continue;
+    if (line.includes("->172.28.")) continue;
+    if (line.includes("->172.29.")) continue;
+    if (line.includes("->172.30.")) continue;
+    if (line.includes("->172.31.")) continue;
+
+    count += 1;
+  }
+
+  return count;
+}
+
+async function sampleExternalRateMbps() {
+  if (externalRateCache.data && Date.now() - externalRateCache.ts < RATE_CACHE_MS) {
+    return externalRateCache.data;
   }
 
   try {
-    const { stdout } = await execPromise("networkQuality -s", 120000);
-    const match = stdout.match(/Download capacity:\s*([0-9.]+)\s*Mbps/i);
-    const mbps = match ? Number(match[1]) : 0;
+    const cmd = `nettop -P -L 1 -J bytes_in,bytes_out -x`;
+    const { stdout } = await execPromise(cmd, 15000);
+    const lines = stdout.split("\n").filter(Boolean);
 
-    networkCache = {
+    let totalBytesIn = 0;
+
+    for (const line of lines) {
+      if (!line.includes(",")) continue;
+      if (line.includes(TV_IP)) continue;
+      if (line.includes("127.0.0.1")) continue;
+
+      const cols = line.split(",");
+      for (const col of cols) {
+        const trimmed = col.trim();
+        if (/^[0-9]+$/.test(trimmed)) {
+          const value = Number(trimmed);
+          if (!Number.isNaN(value)) {
+            totalBytesIn += value;
+            break;
+          }
+        }
+      }
+    }
+
+    const mbps = Number(((totalBytesIn * 8) / 1000000).toFixed(2));
+
+    externalRateCache = {
       ts: Date.now(),
-      data: {
-        mbps,
-        quality: classifyMbps(mbps),
-      },
+      data: mbps,
     };
+
+    return mbps;
   } catch {
-    networkCache = {
+    externalRateCache = {
       ts: Date.now(),
-      data: {
-        mbps: 0,
-        quality: "Unknown",
-      },
+      data: 0,
     };
+    return 0;
   }
-
-  return networkCache.data;
 }
 
-async function checkStreamio() {
-  const started = Date.now();
+async function buildPlaybackStatus() {
+  const lines = await getLsofLines();
+  const tv = countTvConnections(lines);
+  const externalConnections = countExternalPeerConnections(lines);
+  const externalMbps = await sampleExternalRateMbps();
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
+  const localStatus = tv.active > 0 ? "TV connected" : "Idle";
+  const torrentProfile = classifyProfile(externalMbps);
 
-    const res = await fetch(`http://127.0.0.1:${STREAMIO_PORT}/`, {
-      signal: controller.signal,
-    }).catch(() => null);
+  let overallProfile = "Idle";
+  if (tv.active > 0 && externalMbps >= 60) overallProfile = "4K HDR";
+  else if (tv.active > 0 && externalMbps >= 30) overallProfile = "4K";
+  else if (tv.active > 0 && externalMbps >= 8) overallProfile = "1080p";
+  else if (tv.active > 0) overallProfile = "Low bitrate";
 
-    clearTimeout(timeout);
+  const stable =
+    tv.active > 0 &&
+    externalConnections > 0 &&
+    overallProfile !== "Idle" &&
+    overallProfile === torrentProfile;
 
-    const responseMs = Date.now() - started;
-    const network = await getNetworkSample();
-
-    return {
-      status: res ? "Up" : "Down",
-      responseMs,
-      mbps: network.mbps,
-      quality: network.quality,
-    };
-  } catch {
-    const network = await getNetworkSample();
-    return {
-      status: "Down",
-      responseMs: 0,
-      mbps: network.mbps,
-      quality: network.quality,
-    };
-  }
+  return {
+    tvIp: TV_IP,
+    tvActive: tv.active > 0,
+    tvRecentSeconds: tv.recent,
+    localStatus,
+    responseMs: tv.responseMs,
+    externalConnections,
+    externalMbps,
+    torrentProfile,
+    overallProfile,
+    stable,
+  };
 }
 
 app.get("/api/adguard/stats", async (_req, res) => {
   try {
     const json = await getAdGuard("/control/stats");
-    res.json(json);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/adguard/history", async (_req, res) => {
-  try {
-    const json = await getAdGuard("/control/stats_history");
     res.json(json);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -244,7 +333,7 @@ app.get("/api/markets/quotes", async (_req, res) => {
 
 app.get("/api/streamio/status", async (_req, res) => {
   try {
-    const status = await checkStreamio();
+    const status = await buildPlaybackStatus();
     res.json(status);
   } catch (err) {
     res.status(500).json({ error: err.message });

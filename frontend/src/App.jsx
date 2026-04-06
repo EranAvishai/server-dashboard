@@ -3,7 +3,6 @@ import {
   Activity,
   ArrowDownCircle,
   ArrowUpCircle,
-  BadgeCheck,
   CloudDrizzle,
   CloudMoon,
   CloudSun,
@@ -40,7 +39,7 @@ const CONFIG = {
     rotateMs: 10 * 1000,
   },
   streamio: {
-    refreshMs: 60 * 1000,
+    refreshMs: 15000,
   },
 };
 
@@ -203,9 +202,7 @@ function useAdGuardStats() {
       try {
         const statsRes = await fetch("/api/adguard/stats");
 
-        if (!statsRes.ok) {
-          throw new Error("API unreachable");
-        }
+        if (!statsRes.ok) throw new Error("API unreachable");
 
         const statsJson = await statsRes.json();
 
@@ -338,10 +335,16 @@ function useMarketData() {
 
 function useStreamioStatus() {
   const [data, setData] = useState({
-    status: "Checking",
-    quality: "Unknown",
-    mbps: 0,
+    tvIp: "192.168.1.110",
+    tvActive: false,
+    tvRecentSeconds: null,
+    localStatus: "Checking",
     responseMs: 0,
+    externalConnections: 0,
+    externalMbps: 0,
+    torrentProfile: "Idle",
+    overallProfile: "Idle",
+    stable: false,
   });
 
   useEffect(() => {
@@ -356,10 +359,16 @@ function useStreamioStatus() {
       } catch {
         if (!cancelled) {
           setData({
-            status: "Down",
-            quality: "Unknown",
-            mbps: 0,
+            tvIp: "192.168.1.110",
+            tvActive: false,
+            tvRecentSeconds: null,
+            localStatus: "Down",
             responseMs: 0,
+            externalConnections: 0,
+            externalMbps: 0,
+            torrentProfile: "Idle",
+            overallProfile: "Idle",
+            stable: false,
           });
         }
       }
@@ -597,12 +606,54 @@ function MarketRotator({ asset, index, count }) {
 
 function DetailValueTile({ label, value }) {
   return (
-    <div className="flex min-h-[96px] flex-col items-center justify-center rounded-2xl bg-black/20 p-3 text-center">
+    <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl bg-black/20 p-3 text-center">
       <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
         {label}
       </div>
-      <div className="mt-2 text-[1.65rem] font-bold leading-tight text-white">
+      <div className="mt-2 text-[1.35rem] font-bold leading-tight text-white">
         {value}
+      </div>
+    </div>
+  );
+}
+
+function StreamioTile({ streamio }) {
+  const tileClass = streamio.stable
+    ? "border-cyan-300/30 bg-cyan-300/10"
+    : "border-white/10 bg-white/5";
+
+  return (
+    <div className={`rounded-3xl border p-3 shadow-2xl backdrop-blur-sm ${tileClass}`}>
+      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
+        <Wifi className="h-4 w-4" />
+        TV / Stremio playback
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <DetailValueTile
+          label="TV"
+          value={streamio.tvActive ? "Active" : "Idle"}
+        />
+        <DetailValueTile
+          label="Profile"
+          value={streamio.overallProfile}
+        />
+        <DetailValueTile
+          label="Peers"
+          value={String(streamio.externalConnections)}
+        />
+        <DetailValueTile
+          label="Torrent in"
+          value={streamio.externalMbps ? `${streamio.externalMbps} Mbps` : "0 Mbps"}
+        />
+        <DetailValueTile
+          label="TV IP"
+          value={streamio.tvIp}
+        />
+        <DetailValueTile
+          label="Status"
+          value={streamio.stable ? "Stable" : streamio.localStatus}
+        />
       </div>
     </div>
   );
@@ -645,15 +696,11 @@ export default function ServerKioskDashboard() {
   );
 
   const streamTone =
-    streamio.status !== "Up"
-      ? "bad"
-      : streamio.quality.includes("HDR")
-        ? "good"
-        : streamio.quality.includes("4K")
-          ? "good"
-          : streamio.quality.includes("1080")
-            ? "warn"
-            : "warn";
+    streamio.tvActive && streamio.stable
+      ? "good"
+      : streamio.tvActive
+        ? "warn"
+        : "bad";
 
   return (
     <div className="h-screen overflow-hidden bg-slate-950 text-white">
@@ -687,9 +734,9 @@ export default function ServerKioskDashboard() {
               />
               <StatCard
                 icon={Wifi}
-                title="Stremio"
-                value={streamio.status}
-                hint={`${streamio.quality} · ${streamio.mbps ? `${streamio.mbps} Mbps` : "No speed sample"}`}
+                title="TV / Stream"
+                value={streamio.tvActive ? "Active" : "Idle"}
+                hint={`${streamio.overallProfile} · ${streamio.externalMbps || 0} Mbps`}
                 tone={streamTone}
               />
             </div>
@@ -725,24 +772,7 @@ export default function ServerKioskDashboard() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-3 shadow-2xl backdrop-blur-sm">
-                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
-                  <BadgeCheck className="h-4 w-4" />
-                  Stremio health tile
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <DetailValueTile label="Server" value={streamio.status} />
-                  <DetailValueTile label="Profile" value={streamio.quality} />
-                  <DetailValueTile
-                    label="Speed sample"
-                    value={streamio.mbps ? `${streamio.mbps} Mbps` : "--"}
-                  />
-                  <DetailValueTile
-                    label="Response"
-                    value={streamio.responseMs ? `${streamio.responseMs} ms` : "--"}
-                  />
-                </div>
-              </div>
+              <StreamioTile streamio={streamio} />
             </aside>
           </main>
         </div>
