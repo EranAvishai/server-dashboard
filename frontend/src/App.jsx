@@ -622,6 +622,23 @@ function StreamioTile({ streamio }) {
     ? "border-cyan-300/30 bg-cyan-300/10"
     : "border-white/10 bg-white/5";
 
+  const sessionLabel = streamio.stable
+    ? "Stable"
+    : streamio.tvActive
+      ? "Active"
+      : "Idle";
+
+  const sessionValue = streamio.stable
+    ? "Stable"
+    : streamio.tvActive
+      ? "Active"
+      : "Idle";
+
+  const torrentIn =
+    streamio.externalMbps && streamio.externalMbps > 0
+      ? `${streamio.externalMbps} Mbps`
+      : "0 Mbps";
+
   return (
     <div className={`rounded-3xl border p-3 shadow-2xl backdrop-blur-sm ${tileClass}`}>
       <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
@@ -630,30 +647,19 @@ function StreamioTile({ streamio }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <DetailValueTile
-          label="TV"
-          value={streamio.tvActive ? "Active" : "Idle"}
-        />
-        <DetailValueTile
-          label="Profile"
-          value={streamio.overallProfile}
-        />
-        <DetailValueTile
-          label="Peers"
-          value={String(streamio.externalConnections)}
-        />
-        <DetailValueTile
-          label="Torrent in"
-          value={streamio.externalMbps ? `${streamio.externalMbps} Mbps` : "0 Mbps"}
-        />
-        <DetailValueTile
-          label="TV IP"
-          value={streamio.tvIp}
-        />
-        <DetailValueTile
-          label="Status"
-          value={streamio.stable ? "Stable" : streamio.localStatus}
-        />
+        <DetailValueTile label="Session" value={sessionValue} />
+        <DetailValueTile label="Quality" value={streamio.overallProfile} />
+        <DetailValueTile label="Torrent in" value={torrentIn} />
+        <DetailValueTile label="Peers" value={String(streamio.externalConnections)} />
+      </div>
+
+      <div className="mt-3 rounded-2xl bg-black/20 px-4 py-3 text-center">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
+          Summary
+        </div>
+        <div className="mt-2 text-lg font-bold text-white">
+          {sessionLabel} · {streamio.overallProfile} · {torrentIn}
+        </div>
       </div>
     </div>
   );
@@ -696,7 +702,7 @@ export default function ServerKioskDashboard() {
   );
 
   const streamTone =
-    streamio.tvActive && streamio.stable
+    streamio.stable
       ? "good"
       : streamio.tvActive
         ? "warn"
@@ -735,7 +741,7 @@ export default function ServerKioskDashboard() {
               <StatCard
                 icon={Wifi}
                 title="TV / Stream"
-                value={streamio.tvActive ? "Active" : "Idle"}
+                value={streamio.stable ? "Stable" : streamio.tvActive ? "Active" : "Idle"}
                 hint={`${streamio.overallProfile} · ${streamio.externalMbps || 0} Mbps`}
                 tone={streamTone}
               />
