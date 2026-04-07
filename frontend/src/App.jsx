@@ -671,6 +671,7 @@ function StreamioTile({ streamio }) {
           </div>
         </div>
       </div>
+    </div>
   );
 }
 
