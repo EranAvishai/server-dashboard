@@ -13,7 +13,6 @@ import {
   Sun,
   Wifi,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Area,
   AreaChart,
@@ -126,7 +125,7 @@ function useWeather() {
         });
 
         const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?${params.toString()}`,
+          `https://api.open-meteo.com/v1/forecast?${params.toString()}`
         );
         const json = await res.json();
 
@@ -179,7 +178,7 @@ function makeDemoSeries() {
     const spike = h > 17 && h < 22 ? 220 : 0;
     const total = Math.max(
       150,
-      Math.round(850 + wave + spike + Math.random() * 50),
+      Math.round(850 + wave + spike + Math.random() * 50)
     );
     const blocked = Math.round(total * (0.18 + Math.random() * 0.08));
     return {
@@ -385,89 +384,29 @@ function useStreamioStatus() {
   return data;
 }
 
-function getThemePalette(hour, weatherCode) {
+function getThemeClasses(hour, weatherCode) {
   const rainy = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(weatherCode);
   const cloudy = [1, 2, 3, 45, 48].includes(weatherCode);
   const clear = weatherCode === 0;
 
   if (hour >= 5 && hour < 10) {
-    if (rainy) {
-      return {
-        bg: "from-slate-600 via-slate-700 to-slate-950",
-        orb1: "bg-sky-300/25",
-        orb2: "bg-cyan-300/20",
-        orb3: "bg-indigo-300/15",
-      };
-    }
-    if (cloudy) {
-      return {
-        bg: "from-slate-500 via-slate-700 to-slate-950",
-        orb1: "bg-slate-200/20",
-        orb2: "bg-blue-200/15",
-        orb3: "bg-indigo-300/12",
-      };
-    }
-    if (clear) {
-      return {
-        bg: "from-blue-500 via-blue-700 to-slate-950",
-        orb1: "bg-yellow-300/25",
-        orb2: "bg-sky-300/20",
-        orb3: "bg-cyan-300/15",
-      };
-    }
+    if (rainy) return "from-slate-600 via-slate-700 to-slate-950";
+    if (cloudy) return "from-slate-500 via-slate-700 to-slate-950";
+    if (clear) return "from-blue-500 via-blue-700 to-slate-950";
   }
 
   if (hour >= 10 && hour < 17) {
-    if (rainy) {
-      return {
-        bg: "from-slate-600 via-slate-800 to-slate-950",
-        orb1: "bg-sky-300/18",
-        orb2: "bg-cyan-300/15",
-        orb3: "bg-blue-300/12",
-      };
-    }
-    if (cloudy) {
-      return {
-        bg: "from-slate-500 via-slate-800 to-slate-950",
-        orb1: "bg-slate-200/18",
-        orb2: "bg-blue-200/14",
-        orb3: "bg-slate-300/10",
-      };
-    }
-    if (clear) {
-      return {
-        bg: "from-teal-600 via-blue-800 to-slate-950",
-        orb1: "bg-sky-300/20",
-        orb2: "bg-cyan-300/16",
-        orb3: "bg-blue-300/14",
-      };
-    }
+    if (rainy) return "from-slate-600 via-slate-800 to-slate-950";
+    if (cloudy) return "from-slate-500 via-slate-800 to-slate-950";
+    if (clear) return "from-teal-600 via-blue-800 to-slate-950";
   }
 
   if (hour >= 17 && hour < 20) {
-    return {
-      bg: "from-indigo-700 via-purple-800 to-slate-950",
-      orb1: "bg-orange-300/25",
-      orb2: "bg-pink-300/18",
-      orb3: "bg-cyan-300/12",
-    };
+    return "from-indigo-700 via-purple-800 to-slate-950";
   }
 
-  if (rainy) {
-    return {
-      bg: "from-slate-800 via-slate-900 to-black",
-      orb1: "bg-sky-300/12",
-      orb2: "bg-blue-300/10",
-      orb3: "bg-indigo-300/10",
-    };
-  }
-
-  return {
-    bg: "from-slate-900 via-blue-950 to-black",
-    orb1: "bg-indigo-300/16",
-    orb2: "bg-cyan-300/10",
-    orb3: "bg-blue-300/10",
-  };
+  if (rainy) return "from-slate-800 via-slate-900 to-black";
+  return "from-slate-900 via-blue-950 to-black";
 }
 
 function WeatherIcon({ code, hour }) {
@@ -480,62 +419,15 @@ function WeatherIcon({ code, hour }) {
   return <CloudSun className="h-4 w-4" />;
 }
 
-function AmbientBackground({ palette }) {
+function Card({ children, className = "" }) {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <motion.div
-        className={`absolute -left-20 top-[-80px] h-[340px] w-[340px] rounded-full blur-3xl ${palette.orb1}`}
-        animate={{
-          x: [0, 40, -10, 0],
-          y: [0, 30, 10, 0],
-          scale: [1, 1.08, 0.98, 1],
-        }}
-        transition={{ duration: 28, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className={`absolute right-[-80px] top-[80px] h-[300px] w-[300px] rounded-full blur-3xl ${palette.orb2}`}
-        animate={{
-          x: [0, -30, 20, 0],
-          y: [0, 20, -10, 0],
-          scale: [1, 0.95, 1.05, 1],
-        }}
-        transition={{ duration: 34, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className={`absolute bottom-[-90px] left-[28%] h-[280px] w-[280px] rounded-full blur-3xl ${palette.orb3}`}
-        animate={{
-          x: [0, 20, -25, 0],
-          y: [0, -18, 12, 0],
-          scale: [1, 1.04, 0.96, 1],
-        }}
-        transition={{ duration: 40, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.10),transparent_35%)]" />
+    <div className={`rounded-3xl border border-white/10 bg-white/6 shadow-xl ${className}`}>
+      {children}
     </div>
   );
 }
 
-function GlassCard({ children, className = "", delay = 0 }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
-      className={`rounded-3xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-sm ${className}`}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  title,
-  value,
-  hint,
-  tone = "default",
-  delay = 0,
-}) {
+function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
   const toneClass =
     tone === "good"
       ? "text-emerald-300"
@@ -546,27 +438,18 @@ function StatCard({
           : "text-white";
 
   return (
-    <GlassCard
-      delay={delay}
-      className="flex min-h-[118px] flex-col items-center justify-center p-3 text-center"
-    >
+    <Card className="flex min-h-[118px] flex-col items-center justify-center p-3 text-center">
       <div className="mb-2 flex items-center gap-2 text-white/65">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] uppercase tracking-[0.24em]">{title}</span>
       </div>
-      <motion.div
-        key={`${title}-${value}`}
-        initial={{ opacity: 0.55, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.25 }}
-        className={`text-[2rem] font-bold leading-none tracking-tight ${toneClass}`}
-      >
+      <div className={`text-[2rem] font-bold leading-none tracking-tight ${toneClass}`}>
         {value}
-      </motion.div>
+      </div>
       <div className="mt-2 max-w-[92%] text-sm font-semibold text-white/75">
         {hint}
       </div>
-    </GlassCard>
+    </Card>
   );
 }
 
@@ -577,7 +460,7 @@ function GraphPanel({ data, status }) {
       : "border-amber-400/20 bg-amber-400/10 text-amber-200";
 
   return (
-    <GlassCard delay={0.28} className="h-full p-3">
+    <Card className="h-full p-3">
       <div className="mb-2 flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-sm font-bold text-white">
@@ -588,26 +471,35 @@ function GraphPanel({ data, status }) {
             Allowed vs blocked DNS activity for the last 24 hours
           </div>
         </div>
-        <div
-          className={`rounded-full border px-3 py-1 text-xs font-bold ${badgeClass}`}
-        >
-          {status}
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 rounded-full border border-white/10 bg-black/15 px-3 py-1 text-[11px] font-semibold text-white/70">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
+              <span>Allowed</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-pink-400" />
+              <span>Blocked</span>
+            </div>
+          </div>
+
+          <div className={`rounded-full border px-3 py-1 text-xs font-bold ${badgeClass}`}>
+            {status}
+          </div>
         </div>
       </div>
 
       <div className="h-[190px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={data}
-            margin={{ top: 8, right: 4, left: -18, bottom: 0 }}
-          >
+          <AreaChart data={data} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
             <defs>
               <linearGradient id="blockedFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#fb7185" stopOpacity={0.55} />
+                <stop offset="5%" stopColor="#fb7185" stopOpacity={0.48} />
                 <stop offset="95%" stopColor="#fb7185" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="allowedFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.45} />
+                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.42} />
                 <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
               </linearGradient>
             </defs>
@@ -626,7 +518,7 @@ function GraphPanel({ data, status }) {
             />
             <Tooltip
               contentStyle={{
-                background: "rgba(15,23,42,0.95)",
+                background: "rgba(15,23,42,0.96)",
                 border: "1px solid rgba(255,255,255,0.08)",
                 borderRadius: 16,
                 color: "white",
@@ -636,122 +528,98 @@ function GraphPanel({ data, status }) {
               type="monotone"
               dataKey="allowed"
               stroke="#38bdf8"
-              strokeWidth={2.3}
+              strokeWidth={2.2}
               fill="url(#allowedFill)"
             />
             <Area
               type="monotone"
               dataKey="blocked"
               stroke="#fb7185"
-              strokeWidth={2.3}
+              strokeWidth={2.2}
               fill="url(#blockedFill)"
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
-    </GlassCard>
+    </Card>
   );
 }
 
 function MarketRotator({ asset, index, count }) {
   if (!asset) {
     return (
-      <GlassCard delay={0.2} className="p-4">
+      <Card className="p-4">
         <div className="text-sm text-white/60">Loading market data</div>
-      </GlassCard>
+      </Card>
     );
   }
 
   const positive = Number(asset.changePercent) >= 0;
 
   return (
-    <GlassCard delay={0.2} className="p-4">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={asset.key}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.35 }}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-                Market pulse
-              </div>
-              <div className="mt-2 text-2xl font-bold tracking-tight text-white">
-                {asset.label}
-              </div>
-              <div className="mt-2 text-xs font-semibold text-white/65">
-                Rotates every 10 seconds · refreshes every 16 minutes
-              </div>
-            </div>
-            <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-bold text-white/75">
-              {index + 1}/{count}
-            </div>
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
+            Market pulse
           </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-white">
+            {asset.label}
+          </div>
+          <div className="mt-2 text-xs font-semibold text-white/65">
+            Rotates every 10 seconds · refreshes every 16 minutes
+          </div>
+        </div>
+        <div className="rounded-full border border-white/10 bg-black/15 px-3 py-1 text-xs font-bold text-white/75">
+          {index + 1}/{count}
+        </div>
+      </div>
 
-          <div className="mt-5 flex items-end justify-between gap-6">
-            <div>
-              <div className="text-[3.3rem] font-bold leading-none tracking-tight text-white">
-                {Number(asset.price).toLocaleString(undefined, {
-                  maximumFractionDigits: 2,
-                })}
-              </div>
-              <div className="mt-2 text-sm font-semibold text-white/70">
-                {asset.suffix} · updated {asset.asOf}
-              </div>
-            </div>
-            <div
-              className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-xl font-bold ${
-                positive
-                  ? "bg-emerald-500/15 text-emerald-300"
-                  : "bg-rose-500/15 text-rose-300"
-              }`}
-            >
-              {positive ? (
-                <ArrowUpCircle className="h-5 w-5" />
-              ) : (
-                <ArrowDownCircle className="h-5 w-5" />
-              )}
-              {positive ? "+" : ""}
-              {Number(asset.changePercent).toFixed(2)}%
-            </div>
+      <div className="mt-5 flex items-end justify-between gap-6">
+        <div>
+          <div className="text-[3.3rem] font-bold leading-none tracking-tight text-white">
+            {Number(asset.price).toLocaleString(undefined, {
+              maximumFractionDigits: 2,
+            })}
           </div>
-        </motion.div>
-      </AnimatePresence>
-    </GlassCard>
+          <div className="mt-2 text-sm font-semibold text-white/70">
+            {asset.suffix} · updated {asset.asOf}
+          </div>
+        </div>
+        <div
+          className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-xl font-bold ${
+            positive
+              ? "bg-emerald-500/15 text-emerald-300"
+              : "bg-rose-500/15 text-rose-300"
+          }`}
+        >
+          {positive ? (
+            <ArrowUpCircle className="h-5 w-5" />
+          ) : (
+            <ArrowDownCircle className="h-5 w-5" />
+          )}
+          {positive ? "+" : ""}
+          {Number(asset.changePercent).toFixed(2)}%
+        </div>
+      </div>
+    </Card>
   );
 }
 
 function DetailValueTile({ label, value }) {
   return (
-    <motion.div
-      whileHover={{ y: -1 }}
-      transition={{ duration: 0.2 }}
-      className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl bg-black/20 p-3 text-center"
-    >
+    <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl bg-black/15 p-3 text-center">
       <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
         {label}
       </div>
       <div className="mt-2 text-[1.35rem] font-bold leading-tight text-white">
         {value}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
 function StreamioTile({ streamio }) {
-  const stableClass = streamio.stable
-    ? "border-cyan-300/30 bg-cyan-300/12 shadow-[0_0_50px_rgba(103,232,249,0.10)]"
-    : "border-white/10 bg-white/5";
-
-  const bandClass = streamio.stable
-    ? "bg-cyan-300/20 text-cyan-100 border-cyan-300/30"
-    : streamio.tvActive
-      ? "bg-amber-300/15 text-amber-100 border-amber-300/25"
-      : "bg-white/5 text-white/70 border-white/10";
-
   const sessionLabel = streamio.stable
     ? "Stable"
     : streamio.tvActive
@@ -763,68 +631,62 @@ function StreamioTile({ streamio }) {
       ? `${streamio.externalMbps} Mbps`
       : "0 Mbps";
 
+  const frameClass = streamio.stable
+    ? "border-cyan-300/30 bg-cyan-300/10"
+    : "border-white/10 bg-white/6";
+
+  const bandClass = streamio.stable
+    ? "border-cyan-300/30 bg-cyan-300/18 text-cyan-100"
+    : streamio.tvActive
+      ? "border-amber-300/25 bg-amber-300/15 text-amber-100"
+      : "border-white/10 bg-black/15 text-white/80";
+
   return (
-    <GlassCard delay={0.32} className={`p-3 ${stableClass}`}>
-      <motion.div
-        animate={
-          streamio.stable ? { opacity: [0.92, 1, 0.92] } : { opacity: 1 }
-        }
-        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-        className={`mb-3 rounded-2xl border px-4 py-3 text-center ${bandClass}`}
-      >
+    <div className={`rounded-3xl border p-3 shadow-xl ${frameClass}`}>
+      <div className={`mb-3 rounded-2xl border px-4 py-4 text-center ${bandClass}`}>
         <div className="text-[10px] uppercase tracking-[0.24em]">
           Stream stability
         </div>
-        <div className="mt-1 text-2xl font-bold">{sessionLabel}</div>
-      </motion.div>
+        <div className="mt-1 text-[2rem] font-bold leading-none">
+          {sessionLabel}
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex min-h-[124px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
+        <div className="flex min-h-[132px] flex-col items-center justify-center rounded-2xl bg-black/15 p-4 text-center">
           <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
             Quality
           </div>
-          <motion.div
-            key={`quality-${streamio.overallProfile}`}
-            initial={{ opacity: 0.6, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.25 }}
-            className="mt-3 text-[2.4rem] font-bold leading-none text-white"
-          >
+          <div className="mt-3 text-[2.5rem] font-bold leading-none text-white">
             {streamio.overallProfile}
-          </motion.div>
+          </div>
         </div>
 
-        <div className="flex min-h-[124px] flex-col items-center justify-center rounded-2xl bg-black/20 p-4 text-center">
+        <div className="flex min-h-[132px] flex-col items-center justify-center rounded-2xl bg-black/15 p-4 text-center">
           <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
             Torrent in
           </div>
-          <motion.div
-            key={`speed-${torrentIn}`}
-            initial={{ opacity: 0.6, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.25 }}
-            className="mt-3 text-[2.2rem] font-bold leading-none text-white"
-          >
+          <div className="mt-3 text-[2.1rem] font-bold leading-none text-white">
             {torrentIn}
-          </motion.div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl bg-black/20 px-4 py-3 text-center">
+      <div className="mt-3 rounded-2xl bg-black/15 px-4 py-4 text-center">
         <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
           Summary
         </div>
-        <div className="mt-2 text-lg font-bold text-white">
-          {sessionLabel} · {streamio.overallProfile}
+        <div className="mt-2 text-xl font-bold text-white">
+          {streamio.overallProfile} · {torrentIn}
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 }
 
 function ClockTile({ time, date }) {
   return (
-    <GlassCard delay={0.05} className="rounded-[2rem] px-5 py-4">
+    <Card className="rounded-[2rem] px-5 py-4">
       <div className="flex h-full flex-col items-center justify-center text-center">
         <div className="mb-2 text-[10px] uppercase tracking-[0.28em] text-sky-200/80">
           MacBook server kiosk
@@ -833,18 +695,12 @@ function ClockTile({ time, date }) {
           <MoonStar className="h-3.5 w-3.5" />
           Local time
         </div>
-        <motion.div
-          key={time}
-          initial={{ opacity: 0.92, y: 2 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
-          className="mt-3 text-[4.6rem] font-bold leading-none tracking-tight text-white"
-        >
+        <div className="mt-3 text-[4.6rem] font-bold leading-none tracking-tight text-white">
           {time}
-        </motion.div>
+        </div>
         <div className="mt-3 text-lg font-semibold text-white/70">{date}</div>
       </div>
-    </GlassCard>
+    </Card>
   );
 }
 
@@ -857,26 +713,24 @@ export default function ServerKioskDashboard() {
 
   const blockedPercent = useMemo(
     () => `${summary.ratio.toFixed(1)}%`,
-    [summary.ratio],
+    [summary.ratio]
   );
 
-  const palette = useMemo(
-    () => getThemePalette(hour, weather.code),
-    [hour, weather.code],
+  const themeClass = useMemo(
+    () => getThemeClasses(hour, weather.code),
+    [hour, weather.code]
   );
 
-  const streamTone = streamio.stable
-    ? "good"
-    : streamio.tvActive
-      ? "warn"
-      : "bad";
+  const streamTone =
+    streamio.stable
+      ? "good"
+      : streamio.tvActive
+        ? "warn"
+        : "bad";
 
   return (
-    <div className="relative h-screen overflow-hidden bg-slate-950 text-white">
-      <div className={`absolute inset-0 bg-gradient-to-b ${palette.bg}`} />
-      <AmbientBackground palette={palette} />
-
-      <div className="relative h-screen overflow-hidden px-3 py-3 lg:px-4 lg:py-4">
+    <div className="h-screen overflow-hidden bg-slate-950 text-white">
+      <div className={`h-screen overflow-hidden bg-gradient-to-b ${themeClass} px-3 py-3 lg:px-4 lg:py-4`}>
         <div className="mx-auto flex h-full max-w-[1500px] flex-col gap-3">
           <header className="grid grid-cols-1 gap-3 xl:grid-cols-[0.72fr_1.28fr]">
             <ClockTile time={time} date={date} />
@@ -891,35 +745,25 @@ export default function ServerKioskDashboard() {
                     ? "Fetching Nes Ziona"
                     : `${weather.condition} · feels ${weather.feels}°`
                 }
-                delay={0.1}
               />
               <StatCard
                 icon={Shield}
                 title="Blocked"
                 value={blockedPercent}
                 hint="Current AdGuard block ratio"
-                delay={0.14}
               />
               <StatCard
                 icon={Activity}
                 title="Queries"
                 value={summary.total.toLocaleString()}
                 hint="Total DNS queries"
-                delay={0.18}
               />
               <StatCard
                 icon={Wifi}
                 title="TV / Stream"
-                value={
-                  streamio.stable
-                    ? "Stable"
-                    : streamio.tvActive
-                      ? "Active"
-                      : "Idle"
-                }
+                value={streamio.stable ? "Stable" : streamio.tvActive ? "Active" : "Idle"}
                 hint={`${streamio.overallProfile} · ${streamio.externalMbps || 0} Mbps`}
                 tone={streamTone}
-                delay={0.22}
               />
             </div>
           </header>
@@ -937,7 +781,7 @@ export default function ServerKioskDashboard() {
             </section>
 
             <aside className="grid min-h-0 grid-cols-1 gap-3">
-              <GlassCard delay={0.26} className="p-3">
+              <Card className="p-3">
                 <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
                   <Gauge className="h-4 w-4" />
                   Weather details
@@ -945,18 +789,14 @@ export default function ServerKioskDashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   <DetailValueTile
                     label="Today"
-                    value={
-                      weather.loading
-                        ? "--"
-                        : `${weather.high}° / ${weather.low}°`
-                    }
+                    value={weather.loading ? "--" : `${weather.high}° / ${weather.low}°`}
                   />
                   <DetailValueTile
                     label="Wind"
                     value={weather.loading ? "--" : `${weather.wind} km/h`}
                   />
                 </div>
-              </GlassCard>
+              </Card>
 
               <StreamioTile streamio={streamio} />
             </aside>
