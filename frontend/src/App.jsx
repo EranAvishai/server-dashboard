@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowDownCircle,
   ArrowUpCircle,
+  Cloud,
   CloudDrizzle,
   CloudMoon,
   CloudSun,
@@ -409,14 +410,38 @@ function getThemeClasses(hour, weatherCode) {
   return "from-slate-900 via-blue-950 to-black";
 }
 
-function WeatherIcon({ code, hour }) {
+function WeatherIcon({ code, hour, className = "h-5 w-5" }) {
   const night = hour >= 19 || hour < 6;
+
   if ([51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(code)) {
-    return <CloudDrizzle className="h-4 w-4" />;
+    return <CloudDrizzle className={className} />;
   }
-  if (night) return <CloudMoon className="h-4 w-4" />;
-  if (code === 0) return <Sun className="h-4 w-4" />;
-  return <CloudSun className="h-4 w-4" />;
+
+  if ([3, 45, 48].includes(code)) {
+    return <Cloud className={className} />;
+  }
+
+  if ([1, 2].includes(code)) {
+    return night ? (
+      <CloudMoon className={className} />
+    ) : (
+      <CloudSun className={className} />
+    );
+  }
+
+  if (code === 0) {
+    return night ? (
+      <CloudMoon className={className} />
+    ) : (
+      <Sun className={className} />
+    );
+  }
+
+  return night ? (
+    <CloudMoon className={className} />
+  ) : (
+    <CloudSun className={className} />
+  );
 }
 
 function Card({ children, className = "" }) {
@@ -671,6 +696,15 @@ function StreamioTile({ streamio }) {
           </div>
         </div>
       </div>
+
+      <div className="mt-3 rounded-2xl bg-black/15 px-4 py-4 text-center">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
+          Summary
+        </div>
+        <div className="mt-2 text-xl font-bold text-white">
+          {streamio.overallProfile} · {torrentIn}
+        </div>
+      </div>
     </div>
   );
 }
@@ -727,16 +761,25 @@ export default function ServerKioskDashboard() {
             <ClockTile time={time} date={date} />
 
             <div className="grid grid-cols-2 gap-3">
-              <StatCard
-                icon={() => <WeatherIcon code={weather.code} hour={hour} />}
-                title="Weather"
-                value={weather.loading ? "--" : `${weather.temp}°C`}
-                hint={
-                  weather.loading
-                    ? "Fetching Nes Ziona"
-                    : `${weather.condition} · feels ${weather.feels}°`
-                }
-              />
+              <Card className="flex min-h-[126px] flex-col items-center justify-center p-4 text-center">
+  <div className="mb-2 flex items-center gap-2 text-white/65">
+    <WeatherIcon code={weather.code} hour={hour} className="h-5 w-5" />
+    <span className="text-[10px] uppercase tracking-[0.24em]">Weather</span>
+  </div>
+
+  <div className="flex items-center gap-3">
+    <WeatherIcon code={weather.code} hour={hour} className="h-9 w-9 text-white/90" />
+    <div className="text-[2.05rem] font-bold leading-none tracking-tight text-white">
+      {weather.loading ? "--" : `${weather.temp}°C`}
+    </div>
+  </div>
+
+  <div className="mt-2 max-w-[92%] text-sm font-semibold text-white/75">
+    {weather.loading
+      ? "Fetching Nes Ziona"
+      : `${weather.condition} · feels ${weather.feels}°`}
+  </div>
+</Card>
               <StatCard
                 icon={Shield}
                 title="Blocked"
