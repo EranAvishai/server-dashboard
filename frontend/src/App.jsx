@@ -463,16 +463,44 @@ function StatCard({ icon: Icon, title, value, hint, tone = "default" }) {
           : "text-white";
 
   return (
-    <Card className="flex min-h-[118px] flex-col items-center justify-center p-3 text-center">
+    <Card className="flex min-h-[126px] flex-col items-center justify-center p-4 text-center">
       <div className="mb-2 flex items-center gap-2 text-white/65">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] uppercase tracking-[0.24em]">{title}</span>
       </div>
-      <div className={`text-[2rem] font-bold leading-none tracking-tight ${toneClass}`}>
+      <div className={`text-[2.05rem] font-bold leading-none tracking-tight ${toneClass}`}>
         {value}
       </div>
       <div className="mt-2 max-w-[92%] text-sm font-semibold text-white/75">
         {hint}
+      </div>
+    </Card>
+  );
+}
+
+function WeatherStatCard({ weather, hour }) {
+  return (
+    <Card className="flex min-h-[126px] flex-col items-center justify-center p-4 text-center">
+      <div className="mb-2 flex items-center gap-2 text-white/65">
+        <WeatherIcon code={weather.code} hour={hour} className="h-4 w-4" />
+        <span className="text-[10px] uppercase tracking-[0.24em]">Weather</span>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <WeatherIcon
+          code={weather.code}
+          hour={hour}
+          className="h-10 w-10 text-white/90"
+        />
+        <div className="text-[2.05rem] font-bold leading-none tracking-tight text-white">
+          {weather.loading ? "--" : `${weather.temp}°C`}
+        </div>
+      </div>
+
+      <div className="mt-2 max-w-[92%] text-sm font-semibold text-white/75">
+        {weather.loading
+          ? "Fetching Nes Ziona"
+          : `${weather.condition} · feels ${weather.feels}°`}
       </div>
     </Card>
   );
@@ -631,13 +659,15 @@ function MarketRotator({ asset, index, count }) {
   );
 }
 
-function DetailValueTile({ label, value }) {
+function DetailValueTile({ label, value, className = "" }) {
   return (
-    <div className="flex min-h-[88px] flex-col items-center justify-center rounded-2xl bg-black/15 p-3 text-center">
+    <div
+      className={`flex min-h-[112px] flex-col items-center justify-center rounded-2xl bg-black/15 p-4 text-center ${className}`}
+    >
       <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
         {label}
       </div>
-      <div className="mt-2 text-[1.35rem] font-bold leading-tight text-white">
+      <div className="mt-2 text-[1.65rem] font-bold leading-tight text-white">
         {value}
       </div>
     </div>
@@ -667,43 +697,27 @@ function StreamioTile({ streamio }) {
       : "border-white/10 bg-black/15 text-white/80";
 
   return (
-    <div className={`rounded-3xl border p-3 shadow-xl ${frameClass}`}>
-      <div className={`mb-3 rounded-2xl border px-4 py-4 text-center ${bandClass}`}>
+    <div className={`flex h-full min-h-[320px] flex-col justify-center rounded-3xl border px-4 py-5 shadow-xl ${frameClass}`}>
+      <div className={`mb-4 rounded-2xl border px-4 py-5 text-center ${bandClass}`}>
         <div className="text-[10px] uppercase tracking-[0.24em]">
           Stream stability
         </div>
-        <div className="mt-1 text-[2rem] font-bold leading-none">
+        <div className="mt-1 text-[2.25rem] font-bold leading-none">
           {sessionLabel}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex min-h-[132px] flex-col items-center justify-center rounded-2xl bg-black/15 p-4 text-center">
-          <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-            Quality
-          </div>
-          <div className="mt-3 text-[2.5rem] font-bold leading-none text-white">
-            {streamio.overallProfile}
-          </div>
-        </div>
-
-        <div className="flex min-h-[132px] flex-col items-center justify-center rounded-2xl bg-black/15 p-4 text-center">
-          <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-            Torrent in
-          </div>
-          <div className="mt-3 text-[2.1rem] font-bold leading-none text-white">
-            {torrentIn}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-3 rounded-2xl bg-black/15 px-4 py-4 text-center">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-          Summary
-        </div>
-        <div className="mt-2 text-xl font-bold text-white">
-          {streamio.overallProfile} · {torrentIn}
-        </div>
+      <div className="grid flex-1 grid-cols-2 gap-4">
+        <DetailValueTile
+          label="Quality"
+          value={streamio.overallProfile}
+          className="min-h-[146px]"
+        />
+        <DetailValueTile
+          label="Torrent in"
+          value={torrentIn}
+          className="min-h-[146px]"
+        />
       </div>
     </div>
   );
@@ -761,25 +775,7 @@ export default function ServerKioskDashboard() {
             <ClockTile time={time} date={date} />
 
             <div className="grid grid-cols-2 gap-3">
-              <Card className="flex min-h-[126px] flex-col items-center justify-center p-4 text-center">
-  <div className="mb-2 flex items-center gap-2 text-white/65">
-    <WeatherIcon code={weather.code} hour={hour} className="h-5 w-5" />
-    <span className="text-[10px] uppercase tracking-[0.24em]">Weather</span>
-  </div>
-
-  <div className="flex items-center gap-3">
-    <WeatherIcon code={weather.code} hour={hour} className="h-9 w-9 text-white/90" />
-    <div className="text-[2.05rem] font-bold leading-none tracking-tight text-white">
-      {weather.loading ? "--" : `${weather.temp}°C`}
-    </div>
-  </div>
-
-  <div className="mt-2 max-w-[92%] text-sm font-semibold text-white/75">
-    {weather.loading
-      ? "Fetching Nes Ziona"
-      : `${weather.condition} · feels ${weather.feels}°`}
-  </div>
-</Card>
+              <WeatherStatCard weather={weather} hour={hour} />
               <StatCard
                 icon={Shield}
                 title="Blocked"
@@ -815,12 +811,12 @@ export default function ServerKioskDashboard() {
             </section>
 
             <aside className="grid min-h-0 grid-cols-1 gap-3">
-              <Card className="p-3">
-                <div className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
+              <Card className="flex min-h-[184px] flex-col justify-center p-4">
+                <div className="mb-4 flex items-center gap-2 text-sm font-bold text-white">
                   <Gauge className="h-4 w-4" />
                   Weather details
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <DetailValueTile
                     label="Today"
                     value={weather.loading ? "--" : `${weather.high}° / ${weather.low}°`}
