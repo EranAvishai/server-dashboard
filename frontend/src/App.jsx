@@ -671,16 +671,6 @@ function StreamioTile({ streamio }) {
           </div>
         </div>
       </div>
-
-      <div className="mt-3 rounded-2xl bg-black/15 px-4 py-4 text-center">
-        <div className="text-[10px] uppercase tracking-[0.24em] text-white/45">
-          Summary
-        </div>
-        <div className="mt-2 text-xl font-bold text-white">
-          {streamio.overallProfile} · {torrentIn}
-        </div>
-      </div>
-    </div>
   );
 }
 
