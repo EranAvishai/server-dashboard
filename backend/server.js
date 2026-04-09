@@ -1,5 +1,5 @@
 const express = require("express");
-const path = require("path");
+const path    = require("path");
 const { exec } = require("child_process");
 
 const app = express();
@@ -13,19 +13,19 @@ const TV_IP         = process.env.TV_IP          || "192.168.1.110";
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
 
 // ─── Cache buckets ────────────────────────────────────────────────────────────
-let marketCache    = { ts: 0, data: null };
-let adguardCache   = { ts: 0, data: null };
-let playbackCache  = { ts: 0, data: null };
-let lsofCache      = { ts: 0, data: [] };
-let nettopCache    = { ts: 0, data: 0 };
-let lastTvSeenAt   = 0;
+let marketCache   = { ts: 0, data: null };
+let adguardCache  = { ts: 0, data: null };
+let playbackCache = { ts: 0, data: null };
+let lsofCache     = { ts: 0, data: [] };
+let nettopCache   = { ts: 0, data: 0 };
+let lastTvSeenAt  = 0;
 
-// ─── Intervals ────────────────────────────────────────────────────────────────
-const MARKET_TTL_MS   = 16 * 60 * 1000;  // 16 min  – Yahoo Finance
-const ADGUARD_TTL_MS  = 30 * 1000;        // 30 s
-const LSOF_TTL_MS     = 10 * 1000;        // 10 s  – was per-request before
-const NETTOP_TTL_MS   = 30 * 1000;        // 30 s  – nettop is expensive
-const PLAYBACK_TTL_MS = 12 * 1000;        // 12 s  – pre-computed on timer
+// ─── TTLs ─────────────────────────────────────────────────────────────────────
+const MARKET_TTL_MS   = 16 * 60 * 1000;   // 16 min
+const ADGUARD_TTL_MS  =      30 * 1000;   // 30 s
+const LSOF_TTL_MS     =      10 * 1000;   // 10 s  — was per-request before
+const NETTOP_TTL_MS   =      30 * 1000;   // 30 s  — nettop is expensive
+const PLAYBACK_TTL_MS =      12 * 1000;   // 12 s  — pre-computed on timer
 
 // ─── Market assets ────────────────────────────────────────────────────────────
 const MARKET_ASSETS = [
@@ -64,6 +64,9 @@ function execPromise(command, timeoutMs = 20000) {
 }
 
 // ─── AdGuard ──────────────────────────────────────────────────────────────────
+// The full /control/stats response includes dns_queries[] and blocked_filtering[]
+// — 24-element hourly arrays that power the frontend chart.
+// We pass the entire JSON through so the chart always has fresh data.
 async function refreshAdGuard() {
   try {
     const data = await fetchJson(`${ADGUARD_BASE}/control/stats`, {
@@ -78,9 +81,9 @@ async function refreshAdGuard() {
 
 // ─── Markets ──────────────────────────────────────────────────────────────────
 async function fetchYahooQuote(asset) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-    asset.symbol
-  )}?interval=1d&range=5d&includePrePost=false&events=div,splits`;
+  const url =
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.symbol)}` +
+    `?interval=1d&range=5d&includePrePost=false&events=div,splits`;
 
   const json = await fetchJson(url, {
     headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
@@ -110,13 +113,13 @@ async function refreshMarkets() {
     try {
       results.push(await fetchYahooQuote(asset));
     } catch {
-      results.push({ key: asset.key, label: asset.label, symbol: asset.symbol, price: 0, changePercent: 0, suffix: asset.suffix, asOf: "Unavailable" });
+      results.push({ key: asset.key, label: asset.label, symbol: asset.symbol, price: 0, changePercent: 0, suffix: asset.suffix, asOf: "—" });
     }
   }
   marketCache = { ts: Date.now(), data: results };
 }
 
-// ─── lsof – cached, NOT run per-request ──────────────────────────────────────
+// ─── lsof — cached, NOT run per-request ──────────────────────────────────────
 async function getLsofLines() {
   if (lsofCache.data.length && Date.now() - lsofCache.ts < LSOF_TTL_MS) {
     return lsofCache.data;
@@ -132,7 +135,7 @@ async function getLsofLines() {
   }
 }
 
-// ─── nettop – cached, NOT run per-request ────────────────────────────────────
+// ─── nettop — cached, NOT run per-request ─────────────────────────────────────
 async function sampleExternalRateMbps() {
   if (nettopCache.data !== null && Date.now() - nettopCache.ts < NETTOP_TTL_MS) {
     return nettopCache.data;
@@ -147,10 +150,7 @@ async function sampleExternalRateMbps() {
       const cols = line.split(",");
       for (const col of cols) {
         const trimmed = col.trim();
-        if (/^[0-9]+$/.test(trimmed)) {
-          totalBytesIn += Number(trimmed);
-          break;
-        }
+        if (/^[0-9]+$/.test(trimmed)) { totalBytesIn += Number(trimmed); break; }
       }
     }
     const mbps = Number(((totalBytesIn * 8) / 1_000_000).toFixed(2));
@@ -162,9 +162,9 @@ async function sampleExternalRateMbps() {
   }
 }
 
-// ─── TV / Stremio connection parsing ─────────────────────────────────────────
+// ─── Stremio / TV parsing ─────────────────────────────────────────────────────
 function classifyProfile(mbps) {
-  if (!mbps || Number.isNaN(mbps) || mbps < 2) return "Idle";
+  if (!mbps || isNaN(mbps) || mbps < 2) return "Idle";
   if (mbps >= 60) return "4K HDR";
   if (mbps >= 30) return "4K";
   if (mbps >= 8)  return "1080p";
@@ -174,10 +174,10 @@ function classifyProfile(mbps) {
 function countTvConnections(lines) {
   let active = 0;
   for (const line of lines) {
-    if (!line.includes(TV_IP)) continue;
+    if (!line.includes(TV_IP))              continue;
     if (!line.includes(`:${STREAMIO_PORT}`)) continue;
-    if (!line.includes("ESTABLISHED")) continue;
-    active += 1;
+    if (!line.includes("ESTABLISHED"))      continue;
+    active++;
   }
   if (active > 0) lastTvSeenAt = Date.now();
   return {
@@ -187,24 +187,27 @@ function countTvConnections(lines) {
   };
 }
 
-const PRIVATE_RANGES = [
-  "127.0.0.1", "->192.168.", "->10.", ...
-  Array.from({ length: 16 }, (_, i) => `->172.${16 + i}.`),
+// Private IP ranges to skip when counting external peers
+const PRIVATE = [
+  "127.0.0.1",
+  "->192.168.",
+  "->10.",
+  ...Array.from({ length: 16 }, (_, i) => `->172.${16 + i}.`),
 ];
 
 function countExternalPeerConnections(lines) {
   let count = 0;
   for (const line of lines) {
     if (!line.includes("ESTABLISHED")) continue;
-    if (PRIVATE_RANGES.some((r) => line.includes(r))) continue;
-    if (line.includes(TV_IP)) continue;
-    if (line.includes(`:${STREAMIO_PORT}`)) continue;
-    count += 1;
+    if (PRIVATE.some((r) => line.includes(r))) continue;
+    if (line.includes(TV_IP))                  continue;
+    if (line.includes(`:${STREAMIO_PORT}`))    continue;
+    count++;
   }
   return count;
 }
 
-// ─── Playback – pre-computed on a background timer ───────────────────────────
+// ─── Playback — pre-computed on a timer, served from cache ────────────────────
 async function refreshPlayback() {
   try {
     const lines              = await getLsofLines();
@@ -225,16 +228,10 @@ async function refreshPlayback() {
     playbackCache = {
       ts: Date.now(),
       data: {
-        tvIp: TV_IP,
-        tvActive: tv.active > 0,
-        tvRecentSeconds: tv.recent,
+        tvIp: TV_IP, tvActive: tv.active > 0, tvRecentSeconds: tv.recent,
         localStatus: tv.active > 0 ? "TV connected" : "Idle",
-        responseMs: tv.responseMs,
-        externalConnections,
-        externalMbps,
-        torrentProfile,
-        overallProfile,
-        stable,
+        responseMs: tv.responseMs, externalConnections, externalMbps,
+        torrentProfile, overallProfile, stable,
       },
     };
   } catch (err) {
@@ -243,26 +240,19 @@ async function refreshPlayback() {
 }
 
 // ─── Background refresh loop ──────────────────────────────────────────────────
-// Heavy work runs on timers — API endpoints just read from cache.
-// This is the key change that keeps the MacBook cool under sustained polling.
+// All heavy work (lsof, nettop, network calls) runs on timers.
+// API endpoints only read from memory — MacBook stays cool under sustained polling.
 async function startBackgroundRefresh() {
-  // Warm up immediately on boot
   await Promise.allSettled([refreshPlayback(), refreshAdGuard(), refreshMarkets()]);
 
-  // lsof + nettop on short cycles (they are already cached internally)
   setInterval(refreshPlayback, PLAYBACK_TTL_MS);
-
-  // AdGuard on a 30s cycle
-  setInterval(refreshAdGuard, ADGUARD_TTL_MS);
-
-  // Markets only when stale (checks TTL internally)
-  setInterval(refreshMarkets, 5 * 60 * 1000);
+  setInterval(refreshAdGuard,  ADGUARD_TTL_MS);
+  setInterval(refreshMarkets,  5 * 60 * 1000);
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-// Single combined endpoint — the frontend makes ONE request per tick
-// instead of 3 separate fetches, cutting HTTP overhead and re-render churn.
+// Single combined endpoint — frontend makes ONE request per tick
 app.get("/api/all", (_req, res) => {
   res.json({
     adguard:   adguardCache.data  ?? null,
@@ -272,12 +262,14 @@ app.get("/api/all", (_req, res) => {
   });
 });
 
-// Keep individual endpoints for compatibility / debugging
-app.get("/api/adguard/stats",    (_req, res) => res.json(adguardCache.data  ?? {}));
-app.get("/api/markets/quotes",   (_req, res) => res.json({ assets: marketCache.data ?? [] }));
-app.get("/api/streamio/status",  (_req, res) => res.json(playbackCache.data ?? {}));
+// Individual endpoints kept for debugging / health checks
+app.get("/api/adguard/stats",   (_req, res) => res.json(adguardCache.data  ?? {}));
+app.get("/api/markets/quotes",  (_req, res) => res.json({ assets: marketCache.data ?? [] }));
+app.get("/api/streamio/status", (_req, res) => res.json(playbackCache.data ?? {}));
 
-app.get("/health", (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
+app.get("/health", (_req, res) =>
+  res.json({ ok: true, uptime: Math.round(process.uptime()) + "s" })
+);
 
 app.use(express.static(FRONTEND_DIST));
 app.use((req, res) => {

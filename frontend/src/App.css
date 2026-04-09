@@ -1,351 +1,479 @@
-/* ─── Reset & base ─────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ─── Fonts ──────────────────────────────────────────────────────────────────
+   Bebas Neue  → all big numbers (ultra-readable from 4 m, cinematic)
+   Syne        → labels and UI text (geometric, premium)
+   ─────────────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;500;600;700&display=swap');
 
+/* ─── Design tokens ──────────────────────────────────────────────────────────*/
 :root {
-  --bg:          #0d0f14;
-  --surface:     #161920;
-  --surface-alt: #1e2229;
-  --border:      rgba(255,255,255,0.07);
-  --text-1:      #e8eaf0;
-  --text-2:      #8a8f9e;
-  --text-3:      #555a68;
-  --accent:      #4f8ef7;
-  --green:       #3ecf8e;
-  --red:         #f06060;
-  --gold:        #f0b429;
+  --bg:          #07090d;
+  --surface:     #0e1117;
+  --surface-2:   #141926;
+  --border:      rgba(255, 255, 255, 0.055);
+  --border-hi:   rgba(255, 255, 255, 0.12);
 
-  --radius:      14px;
-  --radius-sm:   8px;
-  --gap:         14px;
+  --text-1:      #eef0f5;
+  --text-2:      #7a8099;
+  --text-3:      #3d4256;
 
-  /* Transitions fire ONCE when state changes — not on a loop */
-  --t-fast:   0.2s ease;
-  --t-medium: 0.4s ease;
+  --teal:        #2dd4bf;
+  --teal-dim:    #0d9488;
+  --green:       #34d399;
+  --red:         #f87171;
+  --gold:        #fbbf24;
+  --blue:        #60a5fa;
+
+  --font-num:    'Bebas Neue', 'Impact', sans-serif;
+  --font-ui:     'Syne', system-ui, sans-serif;
+
+  --gap:         12px;
+  --r:           18px;          /* tile corner radius */
+  --r-sm:        10px;
+
+  /* Transitions fire on data change, never loop */
+  --ease:        0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-body {
+/* ─── Reset ──────────────────────────────────────────────────────────────────*/
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;           /* no scrollbars — it's a wall display */
   background: var(--bg);
+  font-family: var(--font-ui);
   color: var(--text-1);
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Dashboard grid ───────────────────────────────────────────────────────── */
+/* ─── Dashboard grid — designed for 13.3" Retina (1280×800 logical) ──────────
+   ┌─────────────┬────────────────────────────────┬──────────────┐
+   │   CLOCK     │          ADGUARD (chart)        │   WEATHER    │
+   ├─────────────┤                                 ├──────────────┤
+   │   STREAM    │                                 │              │
+   ├─────────────┴────────────────────────────────┴──────────────┤
+   │                       MARKETS (4 assets)                     │
+   └─────────────────────────────────────────────────────────────┘
+   ─────────────────────────────────────────────────────────────────────────── */
 .dashboard {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: 280px 1fr 260px;
+  grid-template-rows: 1fr 1fr 180px 28px;
+  grid-template-areas:
+    "clock  adguard  weather"
+    "stream adguard  weather"
+    "markets markets markets"
+    "footer footer  footer";
+  height: 100vh;
   gap: var(--gap);
   padding: var(--gap);
-  min-height: 100vh;
-  align-content: start;
 }
 
-.dashboard__footer {
-  grid-column: 1 / -1;
-  text-align: right;
-  font-size: 12px;
-  color: var(--text-3);
-  padding: 4px 2px;
-}
-
-.footer__error { color: var(--red); }
-
-/* ─── Tile base ────────────────────────────────────────────────────────────── */
+/* ─── Tile base ──────────────────────────────────────────────────────────────*/
 .tile {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 20px;
+  border-radius: var(--r);
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  /* Single entrance transition — fires once on mount, not on a loop */
-  animation: tile-in 0.3s ease both;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  /* One-shot entrance — not a loop */
+  animation: tile-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes tile-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
 }
 
-.tile--empty {
-  color: var(--text-3);
-  font-size: 13px;
-  align-items: center;
-  justify-content: center;
-  min-height: 100px;
+/* Subtle inner glow on the top edge — like a premium device bezel */
+.tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r);
+  border-top: 1px solid rgba(255,255,255,0.09);
+  pointer-events: none;
 }
 
-.tile__label {
+.tile-label {
+  font-family: var(--font-ui);
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.tile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tile-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--teal);
+  background: rgba(45, 212, 191, 0.1);
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(45, 212, 191, 0.2);
+}
+
+.dim { color: var(--text-3); }
+.accent { color: var(--teal) !important; }
+
+/* ─── CLOCK ──────────────────────────────────────────────────────────────────*/
+.clock-tile {
+  grid-area: clock;
+  justify-content: flex-end;
+  gap: 0;
+  padding-bottom: 28px;
+}
+
+.clock-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.clock-day {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+.clock-date {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 400;
+}
+
+.clock-body {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
+}
+
+/* Bebas Neue at this size is perfectly readable from 4+ meters */
+.clock-hhmm {
+  font-family: var(--font-num);
+  font-size: clamp(80px, 12vw, 140px);
+  color: var(--text-1);
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.9;
+}
+
+.clock-ss {
+  font-family: var(--font-num);
+  font-size: clamp(36px, 5vw, 56px);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--ease);
+}
+
+/* ─── WEATHER ────────────────────────────────────────────────────────────────*/
+.weather-tile {
+  grid-area: weather;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.wx-icon {
+  font-size: 56px;
+  line-height: 1;
+  /* No animation — just renders on data change */
+  transition: opacity 0.3s;
+}
+
+.wx-temp {
+  font-family: var(--font-num);
+  font-size: clamp(72px, 8vw, 110px);
+  color: var(--text-1);
+  line-height: 0.95;
+  letter-spacing: -1px;
+}
+
+.wx-desc {
+  font-size: 14px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.wx-wind {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ─── ADGUARD ────────────────────────────────────────────────────────────────*/
+.adguard-tile {
+  grid-area: adguard;
+  gap: 16px;
+}
+
+.adguard-stats {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.stat-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-num {
+  font-family: var(--font-num);
+  font-size: clamp(52px, 6vw, 80px);
+  color: var(--text-1);
+  line-height: 0.95;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-sub {
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
 }
 
-/* ─── Clock ────────────────────────────────────────────────────────────────── */
-.tile--clock {
-  grid-column: span 1;
-  justify-content: center;
-}
-
-.clock__time {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.clock__hhmm {
-  font-size: 52px;
-  font-weight: 300;
-  letter-spacing: -2px;
-  color: var(--text-1);
-  font-variant-numeric: tabular-nums;
-}
-
-.clock__ss {
-  font-size: 22px;
-  font-weight: 300;
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
-  min-width: 30px;
-}
-
-.clock__date {
-  font-size: 13px;
-  color: var(--text-2);
-}
-
-/* ─── Weather ──────────────────────────────────────────────────────────────── */
-.tile--weather { justify-content: center; }
-
-.weather__main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.weather__icon {
-  font-size: 36px;
-  line-height: 1;
-}
-
-.weather__temp {
-  font-size: 44px;
-  font-weight: 300;
-  letter-spacing: -1px;
-}
-
-.weather__wind { font-size: 13px; color: var(--text-2); }
-.weather__loading { font-size: 13px; color: var(--text-3); }
-
-/* ─── AdGuard ──────────────────────────────────────────────────────────────── */
-.tile--adguard { grid-column: span 2; }
-@media (max-width: 580px) { .tile--adguard { grid-column: span 1; } }
-
-.adguard__stats {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.adguard__stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.adguard__num {
-  font-size: 28px;
-  font-weight: 300;
-  letter-spacing: -0.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-1);
-}
-
-.adguard__num--pct { color: var(--accent); }
-
-.adguard__desc {
-  font-size: 12px;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.adguard__divider {
+.stat-rule {
   width: 1px;
-  height: 36px;
-  background: var(--border);
+  height: 48px;
+  background: var(--border-hi);
   flex-shrink: 0;
 }
 
-.adguard__bar-track {
-  height: 4px;
-  background: var(--surface-alt);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.adguard__bar-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  /* Transition fires on data change — not a continuous animation */
-  transition: width var(--t-medium);
-}
-
-/* ─── Markets ──────────────────────────────────────────────────────────────── */
-.tile--markets { grid-column: span 2; }
-@media (max-width: 580px) { .tile--markets { grid-column: span 1; } }
-
-.markets__grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-}
-
-@media (max-width: 700px) {
-  .markets__grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-.market__asset {
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
+/* ─── AdGuard SVG Chart ──────────────────────────────────────────────────────*/
+.chart-wrap {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  /* Border transitions when up/down status changes — no loop */
-  transition: border-color var(--t-fast);
+  gap: 6px;
+  min-height: 0;
 }
 
-.market__asset--up  { border-color: rgba(62, 207, 142, 0.25); }
-.market__asset--down { border-color: rgba(240, 96, 96, 0.25); }
+.adguard-svg {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: block;
+  /* No animation — SVG repaints only when data changes */
+}
 
-.market__label {
+.chart-labels {
+  display: flex;
+  justify-content: space-between;
   font-size: 11px;
   color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.market__price {
-  font-size: 17px;
   font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-1);
+  letter-spacing: 0.05em;
 }
 
-.market__suffix { font-size: 11px; color: var(--text-3); }
-
-.market__change {
+.chart-empty {
   font-size: 13px;
-  font-weight: 500;
-  /* Color transitions when data changes */
-  transition: color var(--t-fast);
-}
-
-.market__asset--up  .market__change { color: var(--green); }
-.market__asset--down .market__change { color: var(--red); }
-
-.market__asof { font-size: 11px; color: var(--text-3); }
-
-/* ─── Streaming ────────────────────────────────────────────────────────────── */
-.tile--streaming {
-  /* Border color transitions on active/idle change — no loop */
-  transition: border-color var(--t-medium);
-}
-
-.tile--active { border-color: rgba(62, 207, 142, 0.3); }
-
-.streaming__status {
+  color: var(--text-3);
+  flex: 1;
   display: flex;
   align-items: center;
+}
+
+/* ─── STREAMING ──────────────────────────────────────────────────────────────*/
+.streaming-tile {
+  grid-area: stream;
+  justify-content: space-between;
+  /* Border transitions on active/idle — fires once, not looping */
+  transition: border-color var(--ease);
+}
+
+.streaming-tile.s-on {
+  border-color: rgba(45, 212, 191, 0.3);
+  background: linear-gradient(160deg, #0e1117 0%, #0e1a1a 100%);
+}
+
+.s-pill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 3px 8px;
+  border-radius: 20px;
+  transition: background var(--ease), color var(--ease);
+}
+
+.pill-live {
+  background: rgba(45, 212, 191, 0.15);
+  color: var(--teal);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+.pill-idle {
+  background: var(--surface-2);
+  color: var(--text-3);
+  border: 1px solid var(--border);
+}
+
+.s-profile {
+  font-family: var(--font-num);
+  font-size: clamp(32px, 4vw, 48px);
+  color: var(--text-1);
+  line-height: 1;
+  transition: color var(--ease);
+}
+
+.s-on .s-profile { color: var(--teal); }
+
+/* Quality ladder — bar heights encode quality visually */
+.s-ladder {
+  display: flex;
+  align-items: flex-end;
   gap: 8px;
 }
 
-.streaming__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  /* Color transitions on active/idle — fires once, not looping */
-  transition: background var(--t-medium), box-shadow var(--t-medium);
-}
-
-.streaming__dot--on {
-  background: var(--green);
-  /* Subtle glow only when actively streaming — not pulsing forever */
-  box-shadow: 0 0 8px rgba(62, 207, 142, 0.5);
-}
-
-.streaming__dot--off {
-  background: var(--text-3);
-  box-shadow: none;
-}
-
-.streaming__label-text { font-size: 14px; color: var(--text-2); }
-
-.streaming__profile { margin-top: 2px; }
-
-.streaming__profile-badge {
-  display: inline-block;
-  padding: 3px 10px;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-1);
-  /* Size transitions when profile changes (e.g. Idle → 4K) */
-  transition: color var(--t-fast);
-}
-
-.tile--active .streaming__profile-badge { color: var(--green); }
-
-.streaming__quality-track {
+.ladder-col {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 4px;
 }
 
-.streaming__quality-step {
-  flex: 1;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--surface-alt);
-  /* Each bar segment transitions independently — still no loop */
-  transition: background var(--t-medium);
+.ladder-bar {
+  width: 22px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  transition: background var(--ease), border-color var(--ease);
 }
 
-.streaming__quality-step--filled { background: var(--accent); }
-.tile--active .streaming__quality-step--filled { background: var(--green); }
+.ladder-bar.bar-on {
+  background: var(--teal-dim);
+  border-color: var(--teal);
+}
 
-.streaming__meta {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
+.s-on .ladder-bar.bar-on {
+  background: var(--teal);
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.3);
+}
+
+.ladder-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-3);
+}
+
+.s-meta {
+  display: flex;
+  gap: 10px;
   flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-2);
 }
 
-/* ─── Responsive ───────────────────────────────────────────────────────────── */
-@media (max-width: 420px) {
-  .clock__hhmm { font-size: 38px; }
-  .clock__ss   { font-size: 16px; }
-  .adguard__num { font-size: 22px; }
+/* ─── MARKETS ────────────────────────────────────────────────────────────────*/
+.markets-tile {
+  grid-area: markets;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  gap: 0;
 }
 
-/* ─── prefers-reduced-motion ──────────────────────────────────────────────── */
-/* Respects macOS "Reduce Motion" accessibility setting */
+.market-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  padding: 0 20px;
+  border-right: 1px solid var(--border);
+}
+
+.market-card:first-child { padding-left: 0; }
+.market-card:last-child  { padding-right: 0; border-right: none; }
+
+.market-name {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+/* Price — Bebas Neue, big, readable from across the room */
+.market-price {
+  font-family: var(--font-num);
+  font-size: clamp(34px, 4vw, 54px);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+  letter-spacing: 0.5px;
+}
+
+.market-change {
+  font-size: 16px;
+  font-weight: 600;
+  transition: color var(--ease);
+}
+
+.up   { color: var(--green); }
+.down { color: var(--red);   }
+
+.market-suffix {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+/* ─── Footer ─────────────────────────────────────────────────────────────────*/
+.dash-footer {
+  grid-area: footer;
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: right;
+  align-self: center;
+  padding-right: 4px;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Reduced motion — respects macOS Accessibility → Reduce Motion ──────────*/
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation-duration:        0.01ms !important;
+    animation-iteration-count: 1      !important;
+    transition-duration:       0.01ms !important;
   }
+}
+
+/* ─── Small screen fallback (just in case) ───────────────────────────────────*/
+@media (max-width: 900px) {
+  .dashboard {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto auto auto;
+    grid-template-areas:
+      "clock   weather"
+      "adguard adguard"
+      "stream  stream"
+      "markets markets"
+      "footer  footer";
+    height: auto;
+    overflow: auto;
+  }
+  html, body { overflow: auto; }
+  .clock-hhmm { font-size: 80px; }
 }
