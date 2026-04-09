@@ -1,69 +1,49 @@
-/* ─── Fonts ──────────────────────────────────────────────────────────────────
-   Bebas Neue  → all big numbers (ultra-readable from 4 m, cinematic)
-   Syne        → labels and UI text (geometric, premium)
-   ─────────────────────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;500;600;700&display=swap');
 
-/* ─── Design tokens ──────────────────────────────────────────────────────────*/
+/* ─── Design tokens (overridden live by weather theme) ───────────────────────*/
 :root {
-  --bg:          #07090d;
-  --surface:     #0e1117;
-  --surface-2:   #141926;
-  --border:      rgba(255, 255, 255, 0.055);
-  --border-hi:   rgba(255, 255, 255, 0.12);
-
-  --text-1:      #eef0f5;
-  --text-2:      #7a8099;
-  --text-3:      #3d4256;
-
-  --teal:        #2dd4bf;
-  --teal-dim:    #0d9488;
-  --green:       #34d399;
-  --red:         #f87171;
-  --gold:        #fbbf24;
-  --blue:        #60a5fa;
-
-  --font-num:    'Bebas Neue', 'Impact', sans-serif;
-  --font-ui:     'Syne', system-ui, sans-serif;
-
-  --gap:         12px;
-  --r:           18px;          /* tile corner radius */
-  --r-sm:        10px;
-
-  /* Transitions fire on data change, never loop */
-  --ease:        0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --accent:       #2dd4bf;
+  --teal:         #14b8a6;
+  --tile-bg:      rgba(14, 17, 23, 0.85);
+  --tile-border:  rgba(255, 255, 255, 0.06);
+  --text-1:       #eef0f5;
+  --text-2:       #4a5270;
+  --text-3:       #252b3e;
+  --glow-bg:      radial-gradient(ellipse at 65% 5%, rgba(45,212,191,0.10) 0%, transparent 55%);
+  --font-n:       'Bebas Neue', Impact, sans-serif;
+  --font-u:       'Syne', system-ui, sans-serif;
+  --r:            16px;
+  --gap:          10px;
 }
 
-/* ─── Reset ──────────────────────────────────────────────────────────────────*/
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: var(--font-u); color: var(--text-1); -webkit-font-smoothing: antialiased; }
 
-html, body {
-  width: 100%; height: 100%;
-  overflow: hidden;           /* no scrollbars — it's a wall display */
-  background: var(--bg);
-  font-family: var(--font-ui);
-  color: var(--text-1);
-  -webkit-font-smoothing: antialiased;
+/* ─── Atmospheric background ─────────────────────────────────────────────────*/
+.bg-layer {
+  position: fixed; inset: 0; z-index: -2;
+  transition: opacity 3.5s ease;   /* smooth sky crossfade */
+}
+.bg-glow {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--glow-bg);
+  transition: background 3.5s ease;
 }
 
-/* ─── Dashboard grid — designed for 13.3" Retina (1280×800 logical) ──────────
-   ┌─────────────┬────────────────────────────────┬──────────────┐
-   │   CLOCK     │          ADGUARD (chart)        │   WEATHER    │
-   ├─────────────┤                                 ├──────────────┤
-   │   STREAM    │                                 │              │
-   ├─────────────┴────────────────────────────────┴──────────────┤
-   │                       MARKETS (4 assets)                     │
-   └─────────────────────────────────────────────────────────────┘
+/* ─── Dashboard grid — 13.3" Retina (1280×800) ───────────────────────────────
+   Left column: Clock (top) + Stremio (fills rest — large)
+   Right 2 cols: Weather (top 2/3 — dominant, transparent sky)
+   Bottom strip: AdGuard (compact) + Stocks (rotating)
    ─────────────────────────────────────────────────────────────────────────── */
 .dashboard {
   display: grid;
-  grid-template-columns: 280px 1fr 260px;
-  grid-template-rows: 1fr 1fr 180px 28px;
+  grid-template-columns: 250px 1fr 1fr;
+  grid-template-rows: 185px 1fr 152px 18px;
   grid-template-areas:
-    "clock  adguard  weather"
-    "stream adguard  weather"
-    "markets markets markets"
-    "footer footer  footer";
+    "clock  wx     wx"
+    "stream wx     wx"
+    "stream ag     stocks"
+    "footer footer footer";
   height: 100vh;
   gap: var(--gap);
   padding: var(--gap);
@@ -71,409 +51,151 @@ html, body {
 
 /* ─── Tile base ──────────────────────────────────────────────────────────────*/
 .tile {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background:   var(--tile-bg);
+  border:       1px solid var(--tile-border);
   border-radius: var(--r);
-  padding: 22px 24px;
-  display: flex;
+  padding:      20px;
+  display:      flex;
   flex-direction: column;
-  gap: 10px;
-  position: relative;
-  overflow: hidden;
-  /* One-shot entrance — not a loop */
-  animation: tile-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  overflow:     hidden;
+  position:     relative;
+  /* Tile color shifts smoothly with weather theme */
+  transition:   background 3.5s ease, border-color 3.5s ease;
+  animation:    tile-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-
-@keyframes tile-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+@keyframes tile-up {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
   to   { opacity: 1; transform: none; }
 }
 
-/* Subtle inner glow on the top edge — like a premium device bezel */
+/* Top-edge inner highlight — like a premium dark device panel */
 .tile::before {
   content: '';
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   border-radius: var(--r);
-  border-top: 1px solid rgba(255,255,255,0.09);
+  border-top: 1px solid rgba(255,255,255,0.08);
   pointer-events: none;
 }
 
 .tile-label {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 2px;
 }
-
-.tile-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.tile-badge {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--teal);
-  background: rgba(45, 212, 191, 0.1);
-  padding: 2px 8px;
-  border-radius: 20px;
-  border: 1px solid rgba(45, 212, 191, 0.2);
-}
-
-.dim { color: var(--text-3); }
-.accent { color: var(--teal) !important; }
+.dim    { color: var(--text-2); }
+.accent { color: var(--accent) !important; }
+.up     { color: #34d399; }
+.dn     { color: #f87171; }
 
 /* ─── CLOCK ──────────────────────────────────────────────────────────────────*/
 .clock-tile {
   grid-area: clock;
   justify-content: flex-end;
-  gap: 0;
-  padding-bottom: 28px;
-}
-
-.clock-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 6px;
-}
-
-.clock-day {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--teal);
-}
-
-.clock-date {
-  font-size: 13px;
-  color: var(--text-2);
-  font-weight: 400;
-}
-
-.clock-body {
-  display: flex;
-  align-items: baseline;
+  padding-bottom: 24px;
   gap: 4px;
-  line-height: 1;
 }
+.clock-top  { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.clock-day  { font-size: 11px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--accent); transition: color 3.5s ease; }
+.clock-date { font-size: 12px; color: var(--text-2); }
+.clock-face { display: flex; align-items: baseline; gap: 5px; line-height: 1; }
+.clock-hm   { font-family: var(--font-n); font-size: clamp(72px, 11vw, 128px); color: var(--text-1); letter-spacing: -1px; font-variant-numeric: tabular-nums; line-height: 0.9; }
+.clock-ss   { font-family: var(--font-n); font-size: clamp(28px, 4.2vw, 50px); color: var(--text-3); font-variant-numeric: tabular-nums; }
 
-/* Bebas Neue at this size is perfectly readable from 4+ meters */
-.clock-hhmm {
-  font-family: var(--font-num);
-  font-size: clamp(80px, 12vw, 140px);
-  color: var(--text-1);
-  letter-spacing: -1px;
-  font-variant-numeric: tabular-nums;
-  line-height: 0.9;
-}
-
-.clock-ss {
-  font-family: var(--font-num);
-  font-size: clamp(36px, 5vw, 56px);
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-  transition: color var(--ease);
-}
-
-/* ─── WEATHER ────────────────────────────────────────────────────────────────*/
-.weather-tile {
-  grid-area: weather;
+/* ─── WEATHER — transparent; lets the sky gradient show through ──────────────*/
+.wx-tile {
+  grid-area: wx;
+  background: transparent !important;  /* IS the sky */
+  border-color: rgba(255,255,255,0.04);
   justify-content: center;
   align-items: center;
   text-align: center;
-  gap: 6px;
-}
-
-.wx-icon {
-  font-size: 56px;
-  line-height: 1;
-  /* No animation — just renders on data change */
-  transition: opacity 0.3s;
-}
-
-.wx-temp {
-  font-family: var(--font-num);
-  font-size: clamp(72px, 8vw, 110px);
-  color: var(--text-1);
-  line-height: 0.95;
-  letter-spacing: -1px;
-}
-
-.wx-desc {
-  font-size: 14px;
-  color: var(--text-2);
-  font-weight: 500;
-}
-
-.wx-wind {
-  font-size: 13px;
-  color: var(--text-3);
-}
-
-/* ─── ADGUARD ────────────────────────────────────────────────────────────────*/
-.adguard-tile {
-  grid-area: adguard;
-  gap: 16px;
-}
-
-.adguard-stats {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  flex-wrap: wrap;
-}
-
-.stat-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.stat-num {
-  font-family: var(--font-num);
-  font-size: clamp(52px, 6vw, 80px);
-  color: var(--text-1);
-  line-height: 0.95;
-  letter-spacing: 1px;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-sub {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.stat-rule {
-  width: 1px;
-  height: 48px;
-  background: var(--border-hi);
-  flex-shrink: 0;
-}
-
-/* ─── AdGuard SVG Chart ──────────────────────────────────────────────────────*/
-.chart-wrap {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 0;
-}
-
-.adguard-svg {
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  display: block;
-  /* No animation — SVG repaints only when data changes */
-}
-
-.chart-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-3);
-  font-weight: 500;
-  letter-spacing: 0.05em;
-}
-
-.chart-empty {
-  font-size: 13px;
-  color: var(--text-3);
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-
-/* ─── STREAMING ──────────────────────────────────────────────────────────────*/
-.streaming-tile {
-  grid-area: stream;
-  justify-content: space-between;
-  /* Border transitions on active/idle — fires once, not looping */
-  transition: border-color var(--ease);
-}
-
-.streaming-tile.s-on {
-  border-color: rgba(45, 212, 191, 0.3);
-  background: linear-gradient(160deg, #0e1117 0%, #0e1a1a 100%);
-}
-
-.s-pill {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  padding: 3px 8px;
-  border-radius: 20px;
-  transition: background var(--ease), color var(--ease);
-}
-
-.pill-live {
-  background: rgba(45, 212, 191, 0.15);
-  color: var(--teal);
-  border: 1px solid rgba(45, 212, 191, 0.3);
-}
-
-.pill-idle {
-  background: var(--surface-2);
-  color: var(--text-3);
-  border: 1px solid var(--border);
-}
-
-.s-profile {
-  font-family: var(--font-num);
-  font-size: clamp(32px, 4vw, 48px);
-  color: var(--text-1);
-  line-height: 1;
-  transition: color var(--ease);
-}
-
-.s-on .s-profile { color: var(--teal); }
-
-/* Quality ladder — bar heights encode quality visually */
-.s-ladder {
-  display: flex;
-  align-items: flex-end;
   gap: 8px;
 }
-
-.ladder-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+/* Bottom scrim: keeps text readable over any sky color */
+.wx-scrim {
+  position: absolute;
+  bottom: 0; left: 0; right: 0; height: 50%;
+  background: linear-gradient(to top, rgba(0,0,0,0.52) 0%, transparent 100%);
+  border-radius: 0 0 var(--r) var(--r);
+  pointer-events: none;
 }
+.wx-loc  { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255,255,255,0.48); position: relative; z-index: 1; }
+.wx-icon { font-size: 82px; line-height: 1; position: relative; z-index: 1; }
+.wx-temp { font-family: var(--font-n); font-size: clamp(96px, 14vw, 170px); color: #fff; line-height: 0.88; position: relative; z-index: 1; }
+.wx-desc { font-size: 18px; font-weight: 500; color: rgba(255,255,255,0.75); position: relative; z-index: 1; }
+.wx-wind { font-size: 13px; color: rgba(255,255,255,0.42); position: relative; z-index: 1; }
+.wx-loading { font-size: 24px; color: rgba(255,255,255,0.3); }
 
+/* ─── ADGUARD — compact, lives in the bottom strip ──────────────────────────*/
+.ag-tile    { grid-area: ag; gap: 10px; justify-content: center; }
+.ag-row     { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.ag-stat    { display: flex; flex-direction: column; gap: 2px; }
+.ag-num     { font-family: var(--font-n); font-size: clamp(30px, 3.6vw, 46px); color: var(--text-1); line-height: 1; font-variant-numeric: tabular-nums; }
+.ag-sub     { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-3); }
+.ag-rule    { width: 1px; height: 32px; background: var(--tile-border); flex-shrink: 0; }
+.ag-track   { height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; }
+.ag-fill    { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.6s ease, background 3.5s ease; }
+
+/* ─── STREAMING — large, takes full left column from row 2 ───────────────────*/
+.stream-tile  { grid-area: stream; gap: 18px; justify-content: space-between; transition: border-color 0.5s ease, background 3.5s ease; }
+.stream-tile.s-on { border-color: rgba(45,212,191,0.30); }
+.stream-head  { display: flex; align-items: center; justify-content: space-between; }
+.s-pill       { font-size: 9px; font-weight: 800; letter-spacing: 0.15em; padding: 3px 8px; border-radius: 20px; transition: all 0.4s ease; }
+.pill-live    { background: rgba(45,212,191,0.15); color: var(--accent); border: 1px solid rgba(45,212,191,0.32); }
+.pill-idle    { background: rgba(255,255,255,0.04); color: var(--text-3); border: 1px solid var(--tile-border); }
+
+.stream-profile {
+  font-family: var(--font-n);
+  font-size: clamp(46px, 6vw, 80px);
+  color: var(--text-1); line-height: 1;
+  transition: color 0.4s ease;
+}
+.s-on .stream-profile { color: var(--accent); }
+
+.stream-ladder { display: flex; align-items: flex-end; gap: 10px; }
+.ladder-col    { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .ladder-bar {
-  width: 22px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  transition: background var(--ease), border-color var(--ease);
+  width: 30px; border-radius: 5px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--tile-border);
+  transition: background 0.4s ease, box-shadow 0.4s ease, border-color 3.5s ease;
 }
+.ladder-bar.bar-on    { background: var(--teal); border-color: var(--accent); }
+.s-on .ladder-bar.bar-on { background: var(--accent); box-shadow: 0 0 16px rgba(45,212,191,0.38); }
+.ladder-lbl { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); }
+.stream-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
 
-.ladder-bar.bar-on {
-  background: var(--teal-dim);
-  border-color: var(--teal);
-}
+/* ─── STOCKS — rotating single tile ─────────────────────────────────────────*/
+.stocks-tile  { grid-area: stocks; justify-content: center; }
+.stocks-body  { display: flex; flex-direction: column; gap: 10px; height: 100%; justify-content: center; }
+.stock-row    { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stock-left   { display: flex; flex-direction: column; gap: 4px; }
+.stock-name   { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-3); }
+.stock-price  { font-family: var(--font-n); font-size: clamp(32px, 4vw, 50px); color: var(--text-1); line-height: 1; font-variant-numeric: tabular-nums; }
+.stock-chg    { font-size: 15px; font-weight: 600; }
+.stock-sfx    { font-size: 11px; opacity: 0.55; }
+.stock-dots   { display: flex; gap: 6px; justify-content: center; }
+.sdot         { width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); transition: background 0.3s, transform 0.3s; }
+.sdot.sdot-on { background: var(--accent); transform: scale(1.35); }
 
-.s-on .ladder-bar.bar-on {
-  background: var(--teal);
-  box-shadow: 0 0 12px rgba(45, 212, 191, 0.3);
-}
-
-.ladder-label {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.s-meta {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--text-2);
-}
-
-/* ─── MARKETS ────────────────────────────────────────────────────────────────*/
-.markets-tile {
-  grid-area: markets;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 28px;
-  gap: 0;
-}
-
-.market-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  padding: 0 20px;
-  border-right: 1px solid var(--border);
-}
-
-.market-card:first-child { padding-left: 0; }
-.market-card:last-child  { padding-right: 0; border-right: none; }
-
-.market-name {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-/* Price — Bebas Neue, big, readable from across the room */
-.market-price {
-  font-family: var(--font-num);
-  font-size: clamp(34px, 4vw, 54px);
-  color: var(--text-1);
-  font-variant-numeric: tabular-nums;
-  line-height: 0.95;
-  letter-spacing: 0.5px;
-}
-
-.market-change {
-  font-size: 16px;
-  font-weight: 600;
-  transition: color var(--ease);
-}
-
-.up   { color: var(--green); }
-.down { color: var(--red);   }
-
-.market-suffix {
-  font-size: 11px;
-  color: var(--text-3);
-  font-weight: 500;
-}
+/* Sparkline SVG */
+.sparkline    { width: 110px; height: 42px; flex-shrink: 0; }
+.spark-empty  { width: 110px; height: 42px; }
 
 /* ─── Footer ─────────────────────────────────────────────────────────────────*/
-.dash-footer {
-  grid-area: footer;
-  font-size: 11px;
-  color: var(--text-3);
-  text-align: right;
-  align-self: center;
-  padding-right: 4px;
-  letter-spacing: 0.04em;
-}
+.dash-footer { grid-area: footer; font-size: 10px; color: var(--text-3); text-align: right; align-self: center; padding-right: 4px; letter-spacing: 0.05em; }
 
-/* ─── Reduced motion — respects macOS Accessibility → Reduce Motion ──────────*/
+/* ─── Reduced motion (respects macOS Accessibility → Reduce Motion) ──────────*/
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration:        0.01ms !important;
-    animation-iteration-count: 1      !important;
-    transition-duration:       0.01ms !important;
-  }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* ─── Small screen fallback (just in case) ───────────────────────────────────*/
-@media (max-width: 900px) {
+/* ─── Narrow screen fallback ─────────────────────────────────────────────────*/
+@media (max-width: 860px) {
   .dashboard {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto auto auto auto auto;
-    grid-template-areas:
-      "clock   weather"
-      "adguard adguard"
-      "stream  stream"
-      "markets markets"
-      "footer  footer";
+    grid-template-areas: "clock wx" "stream wx" "stream ag" "stocks stocks" "footer footer";
     height: auto;
-    overflow: auto;
   }
   html, body { overflow: auto; }
-  .clock-hhmm { font-size: 80px; }
 }
