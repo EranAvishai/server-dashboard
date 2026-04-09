@@ -5,28 +5,37 @@ const { exec } = require("child_process");
 const app = express();
 const PORT = process.env.PORT || 8787;
 
-const ADGUARD_BASE = process.env.ADGUARD_BASE || "http://127.0.0.1:3000";
-const ADGUARD_USER = process.env.ADGUARD_USER || "";
-const ADGUARD_PASS = process.env.ADGUARD_PASS || "";
-const STREAMIO_PORT = process.env.STREAMIO_PORT || "11470";
-const TV_IP = process.env.TV_IP || "192.168.1.110";
-
+const ADGUARD_BASE  = process.env.ADGUARD_BASE   || "http://127.0.0.1:3000";
+const ADGUARD_USER  = process.env.ADGUARD_USER   || "";
+const ADGUARD_PASS  = process.env.ADGUARD_PASS   || "";
+const STREAMIO_PORT = process.env.STREAMIO_PORT  || "11470";
+const TV_IP         = process.env.TV_IP          || "192.168.1.110";
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
 
-let marketCache = { ts: 0, data: null };
-let externalRateCache = { ts: 0, data: null };
-let lastTvSeenAt = 0;
+// ─── Cache buckets ────────────────────────────────────────────────────────────
+let marketCache    = { ts: 0, data: null };
+let adguardCache   = { ts: 0, data: null };
+let playbackCache  = { ts: 0, data: null };
+let lsofCache      = { ts: 0, data: [] };
+let nettopCache    = { ts: 0, data: 0 };
+let lastTvSeenAt   = 0;
 
-const MARKET_REFRESH_MS = 16 * 60 * 1000;
-const RATE_CACHE_MS = 15000;
+// ─── Intervals ────────────────────────────────────────────────────────────────
+const MARKET_TTL_MS   = 16 * 60 * 1000;  // 16 min  – Yahoo Finance
+const ADGUARD_TTL_MS  = 30 * 1000;        // 30 s
+const LSOF_TTL_MS     = 10 * 1000;        // 10 s  – was per-request before
+const NETTOP_TTL_MS   = 30 * 1000;        // 30 s  – nettop is expensive
+const PLAYBACK_TTL_MS = 12 * 1000;        // 12 s  – pre-computed on timer
 
+// ─── Market assets ────────────────────────────────────────────────────────────
 const MARKET_ASSETS = [
-  { key: "sp500", label: "S&P 500", symbol: "^GSPC", suffix: "USD" },
-  { key: "ta125", label: "TA-125", symbol: "^TA125.TA", suffix: "ILS" },
-  { key: "gold", label: "Gold", symbol: "GC=F", suffix: "USD" },
-  { key: "btc", label: "Bitcoin", symbol: "BTC-USD", suffix: "USD" },
+  { key: "sp500", label: "S&P 500",  symbol: "^GSPC",    suffix: "USD" },
+  { key: "ta125", label: "TA-125",   symbol: "^TA125.TA", suffix: "ILS" },
+  { key: "gold",  label: "Gold",     symbol: "GC=F",      suffix: "USD" },
+  { key: "btc",   label: "Bitcoin",  symbol: "BTC-USD",   suffix: "USD" },
 ];
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function basicAuthHeader() {
   if (!ADGUARD_USER || !ADGUARD_PASS) return {};
   const token = Buffer.from(`${ADGUARD_USER}:${ADGUARD_PASS}`).toString("base64");
@@ -36,17 +45,9 @@ function basicAuthHeader() {
 async function fetchJson(url, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 8000);
-
   try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} for ${url}`);
-    }
-
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
     return res.json();
   } finally {
     clearTimeout(timeout);
@@ -62,297 +63,231 @@ function execPromise(command, timeoutMs = 20000) {
   });
 }
 
-async function getAdGuard(pathname) {
-  return fetchJson(`${ADGUARD_BASE}${pathname}`, {
-    headers: {
-      ...basicAuthHeader(),
-    },
-    timeoutMs: 8000,
-  });
+// ─── AdGuard ──────────────────────────────────────────────────────────────────
+async function refreshAdGuard() {
+  try {
+    const data = await fetchJson(`${ADGUARD_BASE}/control/stats`, {
+      headers: basicAuthHeader(),
+      timeoutMs: 8000,
+    });
+    adguardCache = { ts: Date.now(), data };
+  } catch (err) {
+    console.warn("AdGuard refresh failed:", err.message);
+  }
 }
 
+// ─── Markets ──────────────────────────────────────────────────────────────────
 async function fetchYahooQuote(asset) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.symbol)}?interval=1d&range=5d&includePrePost=false&events=div,splits`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+    asset.symbol
+  )}?interval=1d&range=5d&includePrePost=false&events=div,splits`;
 
   const json = await fetchJson(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "application/json",
-    },
+    headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
     timeoutMs: 10000,
   });
 
   const result = json?.chart?.result?.[0];
-  if (!result || !result.meta) {
-    throw new Error(`Bad market response for ${asset.symbol}`);
-  }
+  if (!result?.meta) throw new Error(`Bad market response for ${asset.symbol}`);
 
-  const meta = result.meta;
-  const price = Number(meta.regularMarketPrice ?? meta.previousClose ?? 0);
+  const meta          = result.meta;
+  const price         = Number(meta.regularMarketPrice ?? meta.previousClose ?? 0);
   const previousClose = Number(meta.chartPreviousClose ?? meta.previousClose ?? 0);
-
-  const changePercent = previousClose
-    ? ((price - previousClose) / previousClose) * 100
-    : 0;
-
+  const changePercent = previousClose ? ((price - previousClose) / previousClose) * 100 : 0;
   const asOf = new Date(
     (meta.regularMarketTime || Math.floor(Date.now() / 1000)) * 1000
   ).toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Asia/Jerusalem",
+    hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jerusalem",
   });
 
-  return {
-    key: asset.key,
-    label: asset.label,
-    symbol: asset.symbol,
-    price,
-    changePercent,
-    suffix: asset.suffix,
-    asOf,
-  };
+  return { key: asset.key, label: asset.label, symbol: asset.symbol, price, changePercent, suffix: asset.suffix, asOf };
 }
 
-async function getMarketQuotes() {
-  if (marketCache.data && Date.now() - marketCache.ts < MARKET_REFRESH_MS) {
-    return marketCache.data;
-  }
-
+async function refreshMarkets() {
+  if (marketCache.data && Date.now() - marketCache.ts < MARKET_TTL_MS) return;
   const results = [];
   for (const asset of MARKET_ASSETS) {
     try {
-      const quote = await fetchYahooQuote(asset);
-      results.push(quote);
+      results.push(await fetchYahooQuote(asset));
     } catch {
-      results.push({
-        key: asset.key,
-        label: asset.label,
-        symbol: asset.symbol,
-        price: 0,
-        changePercent: 0,
-        suffix: asset.suffix,
-        asOf: "Unavailable",
-      });
+      results.push({ key: asset.key, label: asset.label, symbol: asset.symbol, price: 0, changePercent: 0, suffix: asset.suffix, asOf: "Unavailable" });
     }
   }
-
-  marketCache = {
-    ts: Date.now(),
-    data: results,
-  };
-
-  return results;
+  marketCache = { ts: Date.now(), data: results };
 }
 
-function classifyProfile(mbps) {
-  if (!mbps || Number.isNaN(mbps) || mbps < 2) return "Idle";
-  if (mbps >= 60) return "4K HDR";
-  if (mbps >= 30) return "4K";
-  if (mbps >= 8) return "1080p";
-  return "Low bitrate";
-}
-
+// ─── lsof – cached, NOT run per-request ──────────────────────────────────────
 async function getLsofLines() {
+  if (lsofCache.data.length && Date.now() - lsofCache.ts < LSOF_TTL_MS) {
+    return lsofCache.data;
+  }
   try {
     const { stdout } = await execPromise("lsof -nP -iTCP -iUDP", 12000);
-    return stdout.split("\n").filter(Boolean);
+    const lines = stdout.split("\n").filter(Boolean);
+    lsofCache = { ts: Date.now(), data: lines };
+    return lines;
   } catch {
+    lsofCache = { ts: Date.now(), data: [] };
     return [];
   }
 }
 
-function parseConnectionColumns(line) {
-  const parts = line.trim().split(/\s+/);
-  if (parts.length < 9) return null;
+// ─── nettop – cached, NOT run per-request ────────────────────────────────────
+async function sampleExternalRateMbps() {
+  if (nettopCache.data !== null && Date.now() - nettopCache.ts < NETTOP_TTL_MS) {
+    return nettopCache.data;
+  }
+  try {
+    const { stdout } = await execPromise("nettop -P -L 1 -J bytes_in,bytes_out -x", 15000);
+    const lines = stdout.split("\n").filter(Boolean);
+    let totalBytesIn = 0;
+    for (const line of lines) {
+      if (!line.includes(",")) continue;
+      if (line.includes(TV_IP) || line.includes("127.0.0.1")) continue;
+      const cols = line.split(",");
+      for (const col of cols) {
+        const trimmed = col.trim();
+        if (/^[0-9]+$/.test(trimmed)) {
+          totalBytesIn += Number(trimmed);
+          break;
+        }
+      }
+    }
+    const mbps = Number(((totalBytesIn * 8) / 1_000_000).toFixed(2));
+    nettopCache = { ts: Date.now(), data: mbps };
+    return mbps;
+  } catch {
+    nettopCache = { ts: Date.now(), data: 0 };
+    return 0;
+  }
+}
 
-  const name = parts[0];
-  const pid = parts[1];
-  const protocol = parts[7];
-  const nameField = parts.slice(8).join(" ");
-
-  return { name, pid, protocol, nameField };
+// ─── TV / Stremio connection parsing ─────────────────────────────────────────
+function classifyProfile(mbps) {
+  if (!mbps || Number.isNaN(mbps) || mbps < 2) return "Idle";
+  if (mbps >= 60) return "4K HDR";
+  if (mbps >= 30) return "4K";
+  if (mbps >= 8)  return "1080p";
+  return "Low bitrate";
 }
 
 function countTvConnections(lines) {
   let active = 0;
-  let responseMs = 0;
-
   for (const line of lines) {
     if (!line.includes(TV_IP)) continue;
     if (!line.includes(`:${STREAMIO_PORT}`)) continue;
     if (!line.includes("ESTABLISHED")) continue;
     active += 1;
   }
-
-  if (active > 0) {
-    lastTvSeenAt = Date.now();
-    responseMs = 20;
-  }
-
+  if (active > 0) lastTvSeenAt = Date.now();
   return {
     active,
     recent: lastTvSeenAt > 0 ? Math.round((Date.now() - lastTvSeenAt) / 1000) : null,
-    responseMs,
+    responseMs: active > 0 ? 20 : 0,
   };
 }
+
+const PRIVATE_RANGES = [
+  "127.0.0.1", "->192.168.", "->10.", ...
+  Array.from({ length: 16 }, (_, i) => `->172.${16 + i}.`),
+];
 
 function countExternalPeerConnections(lines) {
   let count = 0;
-
   for (const line of lines) {
     if (!line.includes("ESTABLISHED")) continue;
-    if (line.includes(`127.0.0.1`)) continue;
+    if (PRIVATE_RANGES.some((r) => line.includes(r))) continue;
     if (line.includes(TV_IP)) continue;
     if (line.includes(`:${STREAMIO_PORT}`)) continue;
-    if (line.includes("->192.168.")) continue;
-    if (line.includes("->10.")) continue;
-    if (line.includes("->172.16.")) continue;
-    if (line.includes("->172.17.")) continue;
-    if (line.includes("->172.18.")) continue;
-    if (line.includes("->172.19.")) continue;
-    if (line.includes("->172.20.")) continue;
-    if (line.includes("->172.21.")) continue;
-    if (line.includes("->172.22.")) continue;
-    if (line.includes("->172.23.")) continue;
-    if (line.includes("->172.24.")) continue;
-    if (line.includes("->172.25.")) continue;
-    if (line.includes("->172.26.")) continue;
-    if (line.includes("->172.27.")) continue;
-    if (line.includes("->172.28.")) continue;
-    if (line.includes("->172.29.")) continue;
-    if (line.includes("->172.30.")) continue;
-    if (line.includes("->172.31.")) continue;
-
     count += 1;
   }
-
   return count;
 }
 
-async function sampleExternalRateMbps() {
-  if (externalRateCache.data && Date.now() - externalRateCache.ts < RATE_CACHE_MS) {
-    return externalRateCache.data;
-  }
-
+// ─── Playback – pre-computed on a background timer ───────────────────────────
+async function refreshPlayback() {
   try {
-    const cmd = `nettop -P -L 1 -J bytes_in,bytes_out -x`;
-    const { stdout } = await execPromise(cmd, 15000);
-    const lines = stdout.split("\n").filter(Boolean);
+    const lines              = await getLsofLines();
+    const tv                 = countTvConnections(lines);
+    const externalConnections = countExternalPeerConnections(lines);
+    const externalMbps       = await sampleExternalRateMbps();
+    const torrentProfile     = classifyProfile(externalMbps);
 
-    let totalBytesIn = 0;
+    let overallProfile = "Idle";
+    if      (tv.active > 0 && externalMbps >= 60) overallProfile = "4K HDR";
+    else if (tv.active > 0 && externalMbps >= 30) overallProfile = "4K";
+    else if (tv.active > 0 && externalMbps >= 8)  overallProfile = "1080p";
+    else if (tv.active > 0)                        overallProfile = "Low bitrate";
 
-    for (const line of lines) {
-      if (!line.includes(",")) continue;
-      if (line.includes(TV_IP)) continue;
-      if (line.includes("127.0.0.1")) continue;
+    const stable = tv.active > 0 && externalConnections > 0 &&
+                   overallProfile !== "Idle" && overallProfile === torrentProfile;
 
-      const cols = line.split(",");
-      for (const col of cols) {
-        const trimmed = col.trim();
-        if (/^[0-9]+$/.test(trimmed)) {
-          const value = Number(trimmed);
-          if (!Number.isNaN(value)) {
-            totalBytesIn += value;
-            break;
-          }
-        }
-      }
-    }
-
-    const mbps = Number(((totalBytesIn * 8) / 1000000).toFixed(2));
-
-    externalRateCache = {
+    playbackCache = {
       ts: Date.now(),
-      data: mbps,
+      data: {
+        tvIp: TV_IP,
+        tvActive: tv.active > 0,
+        tvRecentSeconds: tv.recent,
+        localStatus: tv.active > 0 ? "TV connected" : "Idle",
+        responseMs: tv.responseMs,
+        externalConnections,
+        externalMbps,
+        torrentProfile,
+        overallProfile,
+        stable,
+      },
     };
-
-    return mbps;
-  } catch {
-    externalRateCache = {
-      ts: Date.now(),
-      data: 0,
-    };
-    return 0;
+  } catch (err) {
+    console.warn("Playback refresh failed:", err.message);
   }
 }
 
-async function buildPlaybackStatus() {
-  const lines = await getLsofLines();
-  const tv = countTvConnections(lines);
-  const externalConnections = countExternalPeerConnections(lines);
-  const externalMbps = await sampleExternalRateMbps();
+// ─── Background refresh loop ──────────────────────────────────────────────────
+// Heavy work runs on timers — API endpoints just read from cache.
+// This is the key change that keeps the MacBook cool under sustained polling.
+async function startBackgroundRefresh() {
+  // Warm up immediately on boot
+  await Promise.allSettled([refreshPlayback(), refreshAdGuard(), refreshMarkets()]);
 
-  const localStatus = tv.active > 0 ? "TV connected" : "Idle";
-  const torrentProfile = classifyProfile(externalMbps);
+  // lsof + nettop on short cycles (they are already cached internally)
+  setInterval(refreshPlayback, PLAYBACK_TTL_MS);
 
-  let overallProfile = "Idle";
-  if (tv.active > 0 && externalMbps >= 60) overallProfile = "4K HDR";
-  else if (tv.active > 0 && externalMbps >= 30) overallProfile = "4K";
-  else if (tv.active > 0 && externalMbps >= 8) overallProfile = "1080p";
-  else if (tv.active > 0) overallProfile = "Low bitrate";
+  // AdGuard on a 30s cycle
+  setInterval(refreshAdGuard, ADGUARD_TTL_MS);
 
-  const stable =
-    tv.active > 0 &&
-    externalConnections > 0 &&
-    overallProfile !== "Idle" &&
-    overallProfile === torrentProfile;
-
-  return {
-    tvIp: TV_IP,
-    tvActive: tv.active > 0,
-    tvRecentSeconds: tv.recent,
-    localStatus,
-    responseMs: tv.responseMs,
-    externalConnections,
-    externalMbps,
-    torrentProfile,
-    overallProfile,
-    stable,
-  };
+  // Markets only when stale (checks TTL internally)
+  setInterval(refreshMarkets, 5 * 60 * 1000);
 }
 
-app.get("/api/adguard/stats", async (_req, res) => {
-  try {
-    const json = await getAdGuard("/control/stats");
-    res.json(json);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
+// Single combined endpoint — the frontend makes ONE request per tick
+// instead of 3 separate fetches, cutting HTTP overhead and re-render churn.
+app.get("/api/all", (_req, res) => {
+  res.json({
+    adguard:   adguardCache.data  ?? null,
+    markets:   marketCache.data   ? { assets: marketCache.data } : null,
+    streaming: playbackCache.data ?? null,
+    ts: Date.now(),
+  });
 });
 
-app.get("/api/markets/quotes", async (_req, res) => {
-  try {
-    const assets = await getMarketQuotes();
-    res.json({ assets });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Keep individual endpoints for compatibility / debugging
+app.get("/api/adguard/stats",    (_req, res) => res.json(adguardCache.data  ?? {}));
+app.get("/api/markets/quotes",   (_req, res) => res.json({ assets: marketCache.data ?? [] }));
+app.get("/api/streamio/status",  (_req, res) => res.json(playbackCache.data ?? {}));
 
-app.get("/api/streamio/status", async (_req, res) => {
-  try {
-    const status = await buildPlaybackStatus();
-    res.json(status);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true });
-});
+app.get("/health", (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
 app.use(express.static(FRONTEND_DIST));
-
 app.use((req, res) => {
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ error: "Not found" });
-  }
+  if (req.path.startsWith("/api/")) return res.status(404).json({ error: "Not found" });
   res.sendFile(path.join(FRONTEND_DIST, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`Dashboard listening on http://127.0.0.1:${PORT}`);
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+startBackgroundRefresh().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Dashboard listening on http://127.0.0.1:${PORT}`);
+  });
 });
