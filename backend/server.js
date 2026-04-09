@@ -12,9 +12,11 @@ const STREAMIO_PORT = process.env.STREAMIO_PORT  || "11470";
 const TV_IP         = process.env.TV_IP          || "192.168.1.110";
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
 
+// ─── Caches ───────────────────────────────────────────────────────────────────
 let marketCache   = { ts: 0, data: null };
 let adguardCache  = { ts: 0, data: null };
 let playbackCache = { ts: 0, data: null };
+let weatherCache  = { ts: 0, data: null };   // ← fetched server-side, no browser CORS
 let lsofCache     = { ts: 0, data: [] };
 let nettopCache   = { ts: 0, data: 0 };
 let lastTvSeenAt  = 0;
@@ -24,6 +26,7 @@ const ADGUARD_TTL_MS  =      30 * 1000;
 const LSOF_TTL_MS     =      10 * 1000;
 const NETTOP_TTL_MS   =      30 * 1000;
 const PLAYBACK_TTL_MS =      12 * 1000;
+const WEATHER_TTL_MS  =  10 * 60 * 1000;
 
 const MARKET_ASSETS = [
   { key: "sp500", label: "S&P 500",  symbol: "^GSPC",     suffix: "USD" },
@@ -32,6 +35,7 @@ const MARKET_ASSETS = [
   { key: "btc",   label: "Bitcoin",  symbol: "BTC-USD",    suffix: "USD" },
 ];
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function basicAuthHeader() {
   if (!ADGUARD_USER || !ADGUARD_PASS) return {};
   return { Authorization: "Basic " + Buffer.from(`${ADGUARD_USER}:${ADGUARD_PASS}`).toString("base64") };
@@ -53,6 +57,24 @@ function execPromise(cmd, ms = 20000) {
   return new Promise((res, rej) => {
     exec(cmd, { timeout: ms }, (err, stdout) => err ? rej(err) : res({ stdout }));
   });
+}
+
+// ─── Weather (server-side fetch — avoids any browser CORS issues) ─────────────
+async function refreshWeather() {
+  try {
+    const data = await fetchJson(
+      "https://api.open-meteo.com/v1/forecast" +
+      "?latitude=31.93&longitude=34.80" +
+      "&current_weather=true" +
+      "&daily=weathercode,temperature_2m_max,temperature_2m_min,time" +
+      "&forecast_days=4" +
+      "&timezone=Asia%2FJerusalem",
+      { timeoutMs: 12000 }
+    );
+    weatherCache = { ts: Date.now(), data };
+  } catch (e) {
+    console.warn("Weather refresh failed:", e.message);
+  }
 }
 
 // ─── AdGuard ──────────────────────────────────────────────────────────────────
@@ -81,9 +103,8 @@ async function fetchYahooQuote(asset) {
   const changePercent = previousClose ? ((price - previousClose) / previousClose) * 100 : 0;
   const asOf = new Date((meta.regularMarketTime || Math.floor(Date.now() / 1000)) * 1000)
     .toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" });
-  // Sparkline: last 4 daily closes for mini direction chart
   const closes    = result.indicators?.quote?.[0]?.close ?? [];
-  const sparkline = closes.filter(v => v != null).slice(-4);
+  const sparkline = closes.filter(v => v != null).slice(-5);  // last 5 days
   return { key: asset.key, label: asset.label, symbol: asset.symbol, price, changePercent, suffix: asset.suffix, asOf, sparkline };
 }
 
@@ -102,9 +123,8 @@ async function getLsofLines() {
   if (lsofCache.data.length && Date.now() - lsofCache.ts < LSOF_TTL_MS) return lsofCache.data;
   try {
     const { stdout } = await execPromise("lsof -nP -iTCP -iUDP", 12000);
-    const lines = stdout.split("\n").filter(Boolean);
-    lsofCache = { ts: Date.now(), data: lines };
-    return lines;
+    lsofCache = { ts: Date.now(), data: stdout.split("\n").filter(Boolean) };
+    return lsofCache.data;
   } catch { lsofCache = { ts: Date.now(), data: [] }; return []; }
 }
 
@@ -121,9 +141,8 @@ async function sampleExternalRateMbps() {
         if (/^[0-9]+$/.test(t)) { total += Number(t); break; }
       }
     }
-    const mbps = Number(((total * 8) / 1_000_000).toFixed(2));
-    nettopCache = { ts: Date.now(), data: mbps };
-    return mbps;
+    nettopCache = { ts: Date.now(), data: Number(((total * 8) / 1_000_000).toFixed(2)) };
+    return nettopCache.data;
   } catch { nettopCache = { ts: Date.now(), data: 0 }; return 0; }
 }
 
@@ -135,20 +154,17 @@ function classifyProfile(mbps) {
   if (mbps >= 8)  return "1080p";
   return "Low bitrate";
 }
-
 const PRIVATE = ["127.0.0.1","->192.168.","->10.",
   ...Array.from({length:16},(_,i)=>`->172.${16+i}.`)];
 
 function countTvConnections(lines) {
-  let active = 0;
+  let n = 0;
   for (const l of lines) {
-    if (!l.includes(TV_IP) || !l.includes(`:${STREAMIO_PORT}`) || !l.includes("ESTABLISHED")) continue;
-    active++;
+    if (l.includes(TV_IP) && l.includes(`:${STREAMIO_PORT}`) && l.includes("ESTABLISHED")) n++;
   }
-  if (active > 0) lastTvSeenAt = Date.now();
-  return { active, recent: lastTvSeenAt > 0 ? Math.round((Date.now()-lastTvSeenAt)/1000) : null, responseMs: active > 0 ? 20 : 0 };
+  if (n > 0) lastTvSeenAt = Date.now();
+  return { active: n, recent: lastTvSeenAt > 0 ? Math.round((Date.now()-lastTvSeenAt)/1000) : null, responseMs: n > 0 ? 20 : 0 };
 }
-
 function countExternalPeers(lines) {
   let n = 0;
   for (const l of lines) {
@@ -171,21 +187,25 @@ async function refreshPlayback() {
     else if (tv.active>0 && mbps>=30) overall = "4K";
     else if (tv.active>0 && mbps>=8)  overall = "1080p";
     else if (tv.active>0)             overall = "Low bitrate";
-    const stable = tv.active>0 && ext>0 && overall!=="Idle" && overall===tpro;
     playbackCache = { ts: Date.now(), data: {
       tvIp: TV_IP, tvActive: tv.active>0, tvRecentSeconds: tv.recent,
       localStatus: tv.active>0?"TV connected":"Idle", responseMs: tv.responseMs,
-      externalConnections: ext, externalMbps: mbps, torrentProfile: tpro, overallProfile: overall, stable,
+      externalConnections: ext, externalMbps: mbps,
+      torrentProfile: tpro, overallProfile: overall,
+      stable: tv.active>0 && ext>0 && overall!=="Idle" && overall===tpro,
     }};
   } catch (e) { console.warn("Playback:", e.message); }
 }
 
 // ─── Background loops ─────────────────────────────────────────────────────────
 async function startBackgroundRefresh() {
-  await Promise.allSettled([refreshPlayback(), refreshAdGuard(), refreshMarkets()]);
+  await Promise.allSettled([
+    refreshPlayback(), refreshAdGuard(), refreshMarkets(), refreshWeather()
+  ]);
   setInterval(refreshPlayback, PLAYBACK_TTL_MS);
   setInterval(refreshAdGuard,  ADGUARD_TTL_MS);
   setInterval(refreshMarkets,  5 * 60 * 1000);
+  setInterval(refreshWeather,  WEATHER_TTL_MS);
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -193,12 +213,14 @@ app.get("/api/all", (_req, res) => res.json({
   adguard:   adguardCache.data  ?? null,
   markets:   marketCache.data   ? { assets: marketCache.data } : null,
   streaming: playbackCache.data ?? null,
+  weather:   weatherCache.data  ?? null,   // ← now included
   ts: Date.now(),
 }));
 
 app.get("/api/adguard/stats",   (_req, res) => res.json(adguardCache.data  ?? {}));
 app.get("/api/markets/quotes",  (_req, res) => res.json({ assets: marketCache.data ?? [] }));
 app.get("/api/streamio/status", (_req, res) => res.json(playbackCache.data ?? {}));
+app.get("/api/weather",         (_req, res) => res.json(weatherCache.data  ?? null));
 app.get("/health",              (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()) + "s" }));
 
 app.use(express.static(FRONTEND_DIST));
