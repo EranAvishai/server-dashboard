@@ -205,7 +205,7 @@ const WeatherTile = memo(function WeatherTile() {
   }, []);
 
   useEffect(() => {
-    loadWeather();
+    loadWeather(); // eslint-disable-line react-hooks/set-state-in-effect
     timerRef.current = setInterval(loadWeather, WEATHER_POLL_MS);
     return () => clearInterval(timerRef.current);
   }, [loadWeather]);
