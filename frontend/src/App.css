@@ -1,38 +1,31 @@
-/* ─── Fonts ──────────────────────────────────────────────────────────────────
-   Bebas Neue  — cinematic display numbers
-   Outfit      — clean, warm, readable labels (NOT generic Inter/Roboto)
-   ─────────────────────────────────────────────────────────────────────────── */
+/* ─── Fonts ──────────────────────────────────────────────────────────────────*/
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
-/* ─── Design tokens — overridden by weather JS ───────────────────────────────*/
+/* ─── Tokens — overridden per-weather-condition by JS ────────────────────────*/
 :root {
   --bg:      #07101f;
   --surface: #0c1a30;
   --s2:      #112038;
   --accent:  #2dd4bf;
   --acd:     rgba(45,212,191,0.14);
-  --wx-grad: linear-gradient(165deg, #1b4060 0%, #0d2540 55%, #07101f 100%);
+  --wx-grad: linear-gradient(160deg,#1b4060 0%,#0d2540 55%,#07101f 100%);
   --t1:      #eef2fa;
   --t2:      #7a9ab8;
   --t3:      #2e4a65;
-  --border:  rgba(255,255,255,0.07);
+  --border:  rgba(255,255,255,0.075);
 
   --fn: 'Bebas Neue', 'Impact', sans-serif;
   --fu: 'Outfit', system-ui, sans-serif;
-
   --r:   16px;
   --rsm: 10px;
   --g:   10px;
-
-  /* Smooth theme transitions — whole dashboard breathes with the weather */
-  --tt: 1s ease;
+  --tt:  0.9s ease;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  width: 100%; height: 100%;
-  overflow: hidden;
+  width: 100%; height: 100%; overflow: hidden;
   background: var(--bg);
   font-family: var(--fu);
   color: var(--t1);
@@ -40,25 +33,27 @@ html, body {
   transition: background var(--tt);
 }
 
-/* ─── Dashboard grid — 13.3" Retina 1280×800 ────────────────────────────────
-   ┌──────────┬─────────────┬──────────────┐
-   │  CLOCK   │   STREAM    │    DATE      │
-   │          │   (tall)    ├──────────────┤
-   │  GUARD   │             │   WEATHER    │
-   │ (compact)│             │  (forecast)  │
-   ├──────────┤             ├──────────────┤
-   │  MARKETS │             │   MARKETS    │
-   └──────────┴─────────────┴──────────────┘
+/* ─── GRID ───────────────────────────────────────────────────────────────────
+   Layout (13.3" 1280×800):
+
+   col1=215px  │  col2=1fr  │  col3=285px
+   ────────────┼────────────┼────────────
+   clock       │  adguard   │  date           row1 = 82px
+   stream      │  adguard   │  weather        row2 = 1fr
+   stream      │  markets   │  markets        row3 = 195px
+   footer                                     row4 = 22px
+
+   KEY FIX: stream is LEFT column (not center)
    ─────────────────────────────────────────────────────────────────────────── */
 .dashboard {
   display: grid;
-  grid-template-columns: 248px 1fr 268px;
-  grid-template-rows: 82px 1fr 155px 22px;
+  grid-template-columns: 215px 1fr 285px;
+  grid-template-rows: 82px 1fr 195px 22px;
   grid-template-areas:
-    "clock  stream  date"
-    "guard  stream  weather"
-    "guard  markets markets"
-    "footer footer  footer";
+    "clock   adguard  date"
+    "stream  adguard  weather"
+    "stream  markets  markets"
+    "footer  footer   footer";
   height: 100vh;
   gap: var(--g);
   padding: var(--g);
@@ -75,50 +70,38 @@ html, body {
   gap: 10px;
   position: relative;
   overflow: hidden;
-  transition:
-    background var(--tt),
-    border-color var(--tt),
-    box-shadow 0.4s ease;
-  animation: tileIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: background var(--tt), border-color var(--tt);
+  animation: tileIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
 }
 
 @keyframes tileIn {
-  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
 
-/* Subtle top-edge highlight — gives tiles a lit feel */
+/* Top-edge light — gives depth without gradients */
 .tile::before {
   content: '';
   position: absolute;
   top: 0; left: 12%; right: 12%; height: 1px;
-  background: rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.1);
   pointer-events: none;
 }
 
 .tile-label {
-  font-family: var(--fu);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--t3);
-  transition: color var(--tt);
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--t3); transition: color var(--tt);
 }
 
 .tile-hdr {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
 }
 
 .tile-badge {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--acd);
-  padding: 2px 9px;
-  border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+  color: var(--accent); background: var(--acd);
+  padding: 2px 9px; border-radius: 20px;
   transition: color var(--tt), background var(--tt);
 }
 
@@ -126,20 +109,17 @@ html, body {
 .clock-tile {
   grid-area: clock;
   justify-content: center;
-  padding: 16px 20px;
 }
 
-.clock-time {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
+.clock-row {
+  display: flex; align-items: baseline; gap: 5px;
 }
 
 .clock-hhmm {
   font-family: var(--fn);
-  font-size: 72px;
+  font-size: 70px;
   color: var(--t1);
-  line-height: 0.88;
+  line-height: 0.9;
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
 }
@@ -148,242 +128,219 @@ html, body {
   font-family: var(--fn);
   font-size: 30px;
   color: var(--t3);
-  font-variant-numeric: tabular-nums;
   align-self: flex-end;
+  font-variant-numeric: tabular-nums;
   transition: color var(--tt);
 }
 
-/* ─── DATE ───────────────────────────────────────────────────────────────────*/
+/* ─── DATE ───────────────────────────────────────────────────────────────────
+   Same width as weather (col3=285px), sits directly above it               */
 .date-tile {
   grid-area: date;
   justify-content: center;
-  text-align: right;
   align-items: flex-end;
-  padding: 14px 20px;
+  text-align: right;
 }
 
 .date-weekday {
   font-family: var(--fn);
-  font-size: 34px;
+  font-size: 36px;
   color: var(--accent);
   line-height: 0.95;
   letter-spacing: 1px;
   transition: color var(--tt);
 }
 
-.date-full {
-  margin-top: 3px;
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--t2);
+.date-rest {
+  font-size: 13px; font-weight: 400;
+  color: var(--t2); margin-top: 3px;
   transition: color var(--tt);
 }
 
-.date-num  { font-weight: 700; color: var(--t1); }
-.date-month { color: var(--t2); }
-
-/* ─── ADGUARD (compact — spans rows 2+3 on left) ────────────────────────────*/
+/* ─── ADGUARD (center, spans rows 1+2, tall with chart) ─────────────────────*/
 .ag-tile {
-  grid-area: guard;
-  gap: 12px;
-  justify-content: space-between;
+  grid-area: adguard;
+  gap: 14px;
 }
 
-.ag-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.ag-stats {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
 }
 
 .ag-stat { display: flex; flex-direction: column; gap: 2px; }
 
 .ag-num {
   font-family: var(--fn);
-  font-size: 46px;
+  font-size: 58px;
   color: var(--t1);
-  line-height: 0.9;
+  line-height: 0.92;
   font-variant-numeric: tabular-nums;
 }
 
 .ag-pct { color: var(--accent); transition: color var(--tt); }
 
 .ag-sub {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--t3);
-  transition: color var(--tt);
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--t3); transition: color var(--tt);
 }
 
 .ag-rule {
-  width: 1px; height: 32px;
-  background: var(--border);
-  flex-shrink: 0;
+  width: 1px; height: 38px;
+  background: rgba(255,255,255,0.1); flex-shrink: 0;
 }
 
-/* Progress bar */
-.ag-bar-track {
-  height: 4px;
-  background: var(--s2);
-  border-radius: 2px;
-  overflow: hidden;
+.chart-wrap {
+  flex: 1; display: flex; flex-direction: column;
+  gap: 6px; min-height: 0;
 }
 
-.ag-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.6s ease, background var(--tt);
+.ag-svg { width: 100%; flex: 1; min-height: 0; display: block; }
+
+.chart-axis {
+  display: flex; justify-content: space-between;
+  font-size: 10px; font-weight: 600;
+  color: var(--t3); letter-spacing: 0.05em;
+  transition: color var(--tt);
 }
 
-/* ─── WEATHER — OnePlus-inspired, background changes with conditions ──────────
-   Grid area: right column, rows 2 only (half height compared to before)      */
+.chart-empty { font-size: 12px; color: var(--t3); }
+
+/* ─── WEATHER ────────────────────────────────────────────────────────────────
+   Right column, row 2 only — compact (~490px tall on 800px screen)
+   Date tile sits above it in row 1 (same column width = 285px) ✓           */
 .wx-tile {
   grid-area: weather;
   background: var(--wx-grad) !important;
-  gap: 6px;
-  transition: background var(--tt) !important;
+  gap: 7px;
   justify-content: space-between;
+  transition: background var(--tt) !important;
 }
 
-.wx-loc-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.wx-loc {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase;
   color: rgba(255,255,255,0.45);
 }
 
+.wx-loading, .wx-err {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+}
+
+.wx-temp-placeholder {
+  font-family: var(--fn);
+  font-size: 80px; color: rgba(255,255,255,0.25); line-height: 0.9;
+}
+
+.wx-err { color: rgba(255,255,255,0.4); font-size: 13px; font-weight: 500; }
+
 .wx-current {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: flex; align-items: center; gap: 10px;
 }
 
 @keyframes wxFloat {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-6px); }
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
 }
 
-.wx-icon {
-  font-size: 46px;
-  line-height: 1;
-}
+.wx-icon { font-size: 48px; line-height: 1; }
 
 .wx-temp {
   font-family: var(--fn);
-  font-size: 88px;
-  color: #ffffff;
+  font-size: 90px;
+  color: #fff;
   line-height: 0.88;
   letter-spacing: -1px;
 }
 
-.wx-cond {
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(255,255,255,0.7);
+.wx-cond-text {
+  font-size: 14px; font-weight: 500;
+  color: rgba(255,255,255,0.72);
 }
 
 .wx-range {
-  display: flex;
-  gap: 12px;
-  font-size: 13px;
-  font-weight: 600;
+  display: flex; gap: 12px;
+  font-size: 13px; font-weight: 600;
 }
-.wx-hi   { color: rgba(255, 205, 110, 0.9); }
-.wx-lo   { color: rgba(140, 185, 255, 0.9); }
-.wx-wind { color: rgba(255, 255, 255, 0.4); font-weight: 400; }
+.wx-hi   { color: rgba(255,208,100,0.95); }
+.wx-lo   { color: rgba(140,186,255,0.95); }
+.wx-wind { color: rgba(255,255,255,0.38); font-weight: 400; }
 
-/* 3-day forecast cards — frosted glass, OnePlus style */
+/* 3-day forecast — frosted cards, OnePlus-inspired */
 .wx-forecast {
-  display: flex;
-  gap: 8px;
-  margin-top: 2px;
+  display: flex; gap: 8px;
 }
 
 .wx-fc-card {
   flex: 1;
-  background: rgba(255, 255, 255, 0.09);
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255,255,255,0.09);
+  border: 1px solid rgba(255,255,255,0.14);
   border-radius: var(--rsm);
   padding: 9px 5px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  animation: tileIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 4px;
+  animation: tileIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
 }
 
 .wx-fc-day {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 9px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.48);
 }
 
 .wx-fc-icon { font-size: 20px; line-height: 1; }
 
 .wx-fc-hi {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(255, 205, 110, 0.95);
+  font-size: 13px; font-weight: 700;
+  color: rgba(255,208,100,0.95);
 }
 
 .wx-fc-lo {
-  font-size: 11px;
-  font-weight: 500;
-  color: rgba(140, 185, 255, 0.8);
+  font-size: 11px; font-weight: 500;
+  color: rgba(140,186,255,0.82);
 }
 
-/* ─── STREAMING — large centrepiece tile ────────────────────────────────────*/
+/* ─── STREAMING (left column, rows 2+3 — tall) ───────────────────────────────*/
 .stream-tile {
   grid-area: stream;
   transition: border-color 0.5s ease, background var(--tt);
 }
 
 .s-live {
-  border-color: rgba(45, 212, 191, 0.32);
-  background: linear-gradient(170deg, #0d2230 0%, var(--surface) 60%) !important;
+  border-color: rgba(45,212,191,0.35);
+  background: linear-gradient(170deg, #0c2232 0%, var(--surface) 65%) !important;
 }
 
 .s-pill {
-  font-size: 10px;
-  font-weight: 800;
+  font-size: 10px; font-weight: 800;
   letter-spacing: 0.13em;
-  padding: 3px 9px;
-  border-radius: 20px;
+  padding: 3px 9px; border-radius: 20px;
 }
 
 .pill-on {
-  background: rgba(45, 212, 191, 0.15);
+  background: rgba(45,212,191,0.15);
   color: #2dd4bf;
-  border: 1px solid rgba(45, 212, 191, 0.3);
-  /* Gentle opacity pulse — compositor only, no layout thrash */
+  border: 1px solid rgba(45,212,191,0.3);
   animation: livePulse 2.8s ease-in-out infinite;
 }
 @keyframes livePulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.6; }
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.6; }
 }
 
 .pill-off {
-  background: var(--s2);
-  color: var(--t3);
+  background: var(--s2); color: var(--t3);
   border: 1px solid var(--border);
 }
 
-/* Profile text fills the available space */
 .s-profile-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
+  flex: 1; display: flex; align-items: center;
 }
 
 .s-profile {
   font-family: var(--fn);
-  font-size: clamp(70px, 9vw, 120px);
+  font-size: clamp(62px, 8vw, 108px);
   color: var(--t1);
   line-height: 0.9;
   letter-spacing: 2px;
@@ -392,132 +349,109 @@ html, body {
 
 .s-live .s-profile { color: var(--accent); }
 
-/* Quality signal bars */
 .s-ladder {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  display: flex; align-items: flex-end; gap: 10px;
 }
 
 .s-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
 }
 
 .s-bar {
-  width: 28px;
-  border-radius: 5px;
+  width: 26px; border-radius: 5px;
   background: var(--s2);
   border: 1px solid var(--border);
   transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
 .s-bar-on {
-  background: rgba(45, 212, 191, 0.25);
+  background: rgba(45,212,191,0.22);
   border-color: var(--accent);
 }
 
 .s-live .s-bar-on {
   background: var(--accent);
-  box-shadow: 0 0 14px rgba(45, 212, 191, 0.35);
+  box-shadow: 0 0 12px rgba(45,212,191,0.3);
 }
 
-.s-bar-lbl {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--t3);
-  transition: color var(--tt);
+.s-lbl {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--t3); transition: color var(--tt);
 }
 
 .s-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--t2);
-  flex-wrap: wrap;
-  transition: color var(--tt);
+  display: flex; gap: 12px; flex-wrap: wrap;
+  font-size: 13px; font-weight: 500;
+  color: var(--t2); transition: color var(--tt);
 }
 
 .s-dim { color: var(--t3); }
 
-/* ─── MARKETS — rotating card, strong readable names ────────────────────────*/
+/* ─── MARKETS (bottom strip, center+right, bigger) ───────────────────────────
+   Row height = 195px (up from 155px → effectively ~26% bigger tile)         */
 .mkt-tile {
   grid-area: markets;
-  padding: 14px 22px;
+  padding: 16px 24px;
   justify-content: center;
   gap: 6px;
 }
 
-.mkt-inner {
-  display: flex;
-  align-items: center;
+.mkt-card {
+  display: flex; align-items: center;
   justify-content: space-between;
-  transition: opacity 0.38s ease, transform 0.38s ease;
+  transition: opacity 0.36s ease, transform 0.36s ease;
 }
 
 .mkt-in  { opacity: 1; transform: translateX(0); }
-.mkt-out { opacity: 0; transform: translateX(24px); }
+.mkt-out { opacity: 0; transform: translateX(22px); }
 
 .mkt-left  { display: flex; flex-direction: column; gap: 4px; }
 .mkt-right { display: flex; align-items: center; }
 
-/* Stock name — was the main complaint: dark + tiny */
+/* ── Stock name: THE FIX ──
+   Was: small, dark, hard to read
+   Now: big, bold, almost white — readable from across the room             */
 .mkt-name {
   font-family: var(--fu);
-  font-size: 17px;           /* bigger */
-  font-weight: 800;          /* boldest Outfit weight */
-  color: rgba(255,255,255,0.88); /* very light, never dark */
+  font-size: 20px;                   /* 15%+ bigger than before */
+  font-weight: 800;                  /* boldest */
+  color: rgba(255,255,255,0.92);     /* very light, high contrast */
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .mkt-price {
   font-family: var(--fn);
-  font-size: 50px;
+  font-size: 58px;                   /* 15% bigger than 50px */
   color: var(--t1);
   line-height: 0.9;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
 }
 
-.mkt-bottom {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.mkt-foot {
+  display: flex; align-items: center; gap: 10px;
 }
 
 .mkt-chg {
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 18px; font-weight: 700;
 }
 .mkt-up { color: #34d399; }
 .mkt-dn { color: #f87171; }
 
 .mkt-suf {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--t3);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  transition: color var(--tt);
+  font-size: 13px; font-weight: 700;
+  color: var(--t3); text-transform: uppercase;
+  letter-spacing: 0.08em; transition: color var(--tt);
 }
 
-/* Rotation indicator dots */
 .mkt-dots {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
+  display: flex; gap: 6px; justify-content: center;
 }
 
 .mkt-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
+  width: 5px; height: 5px; border-radius: 50%;
   background: var(--t3);
   transition: background 0.35s ease, transform 0.35s ease;
 }
@@ -525,43 +459,39 @@ html, body {
 .mkt-dot-on {
   background: var(--accent);
   transform: scale(1.4);
-  transition: color var(--tt);
 }
 
 /* ─── Footer ─────────────────────────────────────────────────────────────────*/
 .dash-footer {
   grid-area: footer;
-  font-size: 10px;
-  color: var(--t3);
-  text-align: right;
-  align-self: center;
-  padding-right: 4px;
-  letter-spacing: 0.04em;
+  font-size: 10px; color: var(--t3);
+  text-align: right; align-self: center;
+  padding-right: 4px; letter-spacing: 0.04em;
   transition: color var(--tt);
 }
 
-/* ─── Reduced motion — respects macOS Accessibility → Reduce Motion ──────────*/
+/* ─── Reduced motion ─────────────────────────────────────────────────────────*/
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration:        0.01ms !important;
-    animation-iteration-count: 1      !important;
-    transition-duration:       0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
-/* ─── Smaller screen fallback ────────────────────────────────────────────────*/
-@media (max-width: 920px) {
+/* ─── Narrow screen fallback ─────────────────────────────────────────────────*/
+@media (max-width: 900px) {
   .dashboard {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto;
     grid-template-areas:
       "clock   date"
       "stream  stream"
-      "guard   weather"
+      "adguard adguard"
+      "weather weather"
       "markets markets"
       "footer  footer";
     height: auto;
-    overflow-y: auto;
   }
   html, body { overflow: auto; }
 }
