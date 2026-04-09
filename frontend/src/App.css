@@ -1,201 +1,567 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;500;600;700&display=swap');
+/* ─── Fonts ──────────────────────────────────────────────────────────────────
+   Bebas Neue  — cinematic display numbers
+   Outfit      — clean, warm, readable labels (NOT generic Inter/Roboto)
+   ─────────────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
-/* ─── Design tokens (overridden live by weather theme) ───────────────────────*/
+/* ─── Design tokens — overridden by weather JS ───────────────────────────────*/
 :root {
-  --accent:       #2dd4bf;
-  --teal:         #14b8a6;
-  --tile-bg:      rgba(14, 17, 23, 0.85);
-  --tile-border:  rgba(255, 255, 255, 0.06);
-  --text-1:       #eef0f5;
-  --text-2:       #4a5270;
-  --text-3:       #252b3e;
-  --glow-bg:      radial-gradient(ellipse at 65% 5%, rgba(45,212,191,0.10) 0%, transparent 55%);
-  --font-n:       'Bebas Neue', Impact, sans-serif;
-  --font-u:       'Syne', system-ui, sans-serif;
-  --r:            16px;
-  --gap:          10px;
+  --bg:      #07101f;
+  --surface: #0c1a30;
+  --s2:      #112038;
+  --accent:  #2dd4bf;
+  --acd:     rgba(45,212,191,0.14);
+  --wx-grad: linear-gradient(165deg, #1b4060 0%, #0d2540 55%, #07101f 100%);
+  --t1:      #eef2fa;
+  --t2:      #7a9ab8;
+  --t3:      #2e4a65;
+  --border:  rgba(255,255,255,0.07);
+
+  --fn: 'Bebas Neue', 'Impact', sans-serif;
+  --fu: 'Outfit', system-ui, sans-serif;
+
+  --r:   16px;
+  --rsm: 10px;
+  --g:   10px;
+
+  /* Smooth theme transitions — whole dashboard breathes with the weather */
+  --tt: 1s ease;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 100%; height: 100%; overflow: hidden; font-family: var(--font-u); color: var(--text-1); -webkit-font-smoothing: antialiased; }
 
-/* ─── Atmospheric background ─────────────────────────────────────────────────*/
-.bg-layer {
-  position: fixed; inset: 0; z-index: -2;
-  transition: opacity 3.5s ease;   /* smooth sky crossfade */
-}
-.bg-glow {
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: var(--glow-bg);
-  transition: background 3.5s ease;
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: var(--fu);
+  color: var(--t1);
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--tt);
 }
 
-/* ─── Dashboard grid — 13.3" Retina (1280×800) ───────────────────────────────
-   Left column: Clock (top) + Stremio (fills rest — large)
-   Right 2 cols: Weather (top 2/3 — dominant, transparent sky)
-   Bottom strip: AdGuard (compact) + Stocks (rotating)
+/* ─── Dashboard grid — 13.3" Retina 1280×800 ────────────────────────────────
+   ┌──────────┬─────────────┬──────────────┐
+   │  CLOCK   │   STREAM    │    DATE      │
+   │          │   (tall)    ├──────────────┤
+   │  GUARD   │             │   WEATHER    │
+   │ (compact)│             │  (forecast)  │
+   ├──────────┤             ├──────────────┤
+   │  MARKETS │             │   MARKETS    │
+   └──────────┴─────────────┴──────────────┘
    ─────────────────────────────────────────────────────────────────────────── */
 .dashboard {
   display: grid;
-  grid-template-columns: 250px 1fr 1fr;
-  grid-template-rows: 185px 1fr 152px 18px;
+  grid-template-columns: 248px 1fr 268px;
+  grid-template-rows: 82px 1fr 155px 22px;
   grid-template-areas:
-    "clock  wx     wx"
-    "stream wx     wx"
-    "stream ag     stocks"
-    "footer footer footer";
+    "clock  stream  date"
+    "guard  stream  weather"
+    "guard  markets markets"
+    "footer footer  footer";
   height: 100vh;
-  gap: var(--gap);
-  padding: var(--gap);
+  gap: var(--g);
+  padding: var(--g);
 }
 
 /* ─── Tile base ──────────────────────────────────────────────────────────────*/
 .tile {
-  background:   var(--tile-bg);
-  border:       1px solid var(--tile-border);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--r);
-  padding:      20px;
-  display:      flex;
+  padding: 18px 20px;
+  display: flex;
   flex-direction: column;
-  overflow:     hidden;
-  position:     relative;
-  /* Tile color shifts smoothly with weather theme */
-  transition:   background 3.5s ease, border-color 3.5s ease;
-  animation:    tile-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  transition:
+    background var(--tt),
+    border-color var(--tt),
+    box-shadow 0.4s ease;
+  animation: tileIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-@keyframes tile-up {
-  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+
+@keyframes tileIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
 
-/* Top-edge inner highlight — like a premium dark device panel */
+/* Subtle top-edge highlight — gives tiles a lit feel */
 .tile::before {
   content: '';
-  position: absolute; inset: 0;
-  border-radius: var(--r);
-  border-top: 1px solid rgba(255,255,255,0.08);
+  position: absolute;
+  top: 0; left: 12%; right: 12%; height: 1px;
+  background: rgba(255,255,255,0.09);
   pointer-events: none;
 }
 
 .tile-label {
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 0.13em; text-transform: uppercase;
-  color: var(--text-3); margin-bottom: 2px;
+  font-family: var(--fu);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--t3);
+  transition: color var(--tt);
 }
-.dim    { color: var(--text-2); }
-.accent { color: var(--accent) !important; }
-.up     { color: #34d399; }
-.dn     { color: #f87171; }
+
+.tile-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tile-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--acd);
+  padding: 2px 9px;
+  border-radius: 20px;
+  transition: color var(--tt), background var(--tt);
+}
 
 /* ─── CLOCK ──────────────────────────────────────────────────────────────────*/
 .clock-tile {
   grid-area: clock;
-  justify-content: flex-end;
-  padding-bottom: 24px;
+  justify-content: center;
+  padding: 16px 20px;
+}
+
+.clock-time {
+  display: flex;
+  align-items: baseline;
   gap: 4px;
 }
-.clock-top  { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
-.clock-day  { font-size: 11px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; color: var(--accent); transition: color 3.5s ease; }
-.clock-date { font-size: 12px; color: var(--text-2); }
-.clock-face { display: flex; align-items: baseline; gap: 5px; line-height: 1; }
-.clock-hm   { font-family: var(--font-n); font-size: clamp(72px, 11vw, 128px); color: var(--text-1); letter-spacing: -1px; font-variant-numeric: tabular-nums; line-height: 0.9; }
-.clock-ss   { font-family: var(--font-n); font-size: clamp(28px, 4.2vw, 50px); color: var(--text-3); font-variant-numeric: tabular-nums; }
 
-/* ─── WEATHER — transparent; lets the sky gradient show through ──────────────*/
-.wx-tile {
-  grid-area: wx;
-  background: transparent !important;  /* IS the sky */
-  border-color: rgba(255,255,255,0.04);
+.clock-hhmm {
+  font-family: var(--fn);
+  font-size: 72px;
+  color: var(--t1);
+  line-height: 0.88;
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-ss {
+  font-family: var(--fn);
+  font-size: 30px;
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+  align-self: flex-end;
+  transition: color var(--tt);
+}
+
+/* ─── DATE ───────────────────────────────────────────────────────────────────*/
+.date-tile {
+  grid-area: date;
   justify-content: center;
+  text-align: right;
+  align-items: flex-end;
+  padding: 14px 20px;
+}
+
+.date-weekday {
+  font-family: var(--fn);
+  font-size: 34px;
+  color: var(--accent);
+  line-height: 0.95;
+  letter-spacing: 1px;
+  transition: color var(--tt);
+}
+
+.date-full {
+  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--t2);
+  transition: color var(--tt);
+}
+
+.date-num  { font-weight: 700; color: var(--t1); }
+.date-month { color: var(--t2); }
+
+/* ─── ADGUARD (compact — spans rows 2+3 on left) ────────────────────────────*/
+.ag-tile {
+  grid-area: guard;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ag-row {
+  display: flex;
   align-items: center;
-  text-align: center;
+  gap: 16px;
+}
+
+.ag-stat { display: flex; flex-direction: column; gap: 2px; }
+
+.ag-num {
+  font-family: var(--fn);
+  font-size: 46px;
+  color: var(--t1);
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-pct { color: var(--accent); transition: color var(--tt); }
+
+.ag-sub {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t3);
+  transition: color var(--tt);
+}
+
+.ag-rule {
+  width: 1px; height: 32px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Progress bar */
+.ag-bar-track {
+  height: 4px;
+  background: var(--s2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ag-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.6s ease, background var(--tt);
+}
+
+/* ─── WEATHER — OnePlus-inspired, background changes with conditions ──────────
+   Grid area: right column, rows 2 only (half height compared to before)      */
+.wx-tile {
+  grid-area: weather;
+  background: var(--wx-grad) !important;
+  gap: 6px;
+  transition: background var(--tt) !important;
+  justify-content: space-between;
+}
+
+.wx-loc-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+}
+
+.wx-current {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-/* Bottom scrim: keeps text readable over any sky color */
-.wx-scrim {
-  position: absolute;
-  bottom: 0; left: 0; right: 0; height: 50%;
-  background: linear-gradient(to top, rgba(0,0,0,0.52) 0%, transparent 100%);
-  border-radius: 0 0 var(--r) var(--r);
-  pointer-events: none;
+
+@keyframes wxFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
 }
-.wx-loc  { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255,255,255,0.48); position: relative; z-index: 1; }
-.wx-icon { font-size: 82px; line-height: 1; position: relative; z-index: 1; }
-.wx-temp { font-family: var(--font-n); font-size: clamp(96px, 14vw, 170px); color: #fff; line-height: 0.88; position: relative; z-index: 1; }
-.wx-desc { font-size: 18px; font-weight: 500; color: rgba(255,255,255,0.75); position: relative; z-index: 1; }
-.wx-wind { font-size: 13px; color: rgba(255,255,255,0.42); position: relative; z-index: 1; }
-.wx-loading { font-size: 24px; color: rgba(255,255,255,0.3); }
 
-/* ─── ADGUARD — compact, lives in the bottom strip ──────────────────────────*/
-.ag-tile    { grid-area: ag; gap: 10px; justify-content: center; }
-.ag-row     { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
-.ag-stat    { display: flex; flex-direction: column; gap: 2px; }
-.ag-num     { font-family: var(--font-n); font-size: clamp(30px, 3.6vw, 46px); color: var(--text-1); line-height: 1; font-variant-numeric: tabular-nums; }
-.ag-sub     { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-3); }
-.ag-rule    { width: 1px; height: 32px; background: var(--tile-border); flex-shrink: 0; }
-.ag-track   { height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; }
-.ag-fill    { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.6s ease, background 3.5s ease; }
+.wx-icon {
+  font-size: 46px;
+  line-height: 1;
+}
 
-/* ─── STREAMING — large, takes full left column from row 2 ───────────────────*/
-.stream-tile  { grid-area: stream; gap: 18px; justify-content: space-between; transition: border-color 0.5s ease, background 3.5s ease; }
-.stream-tile.s-on { border-color: rgba(45,212,191,0.30); }
-.stream-head  { display: flex; align-items: center; justify-content: space-between; }
-.s-pill       { font-size: 9px; font-weight: 800; letter-spacing: 0.15em; padding: 3px 8px; border-radius: 20px; transition: all 0.4s ease; }
-.pill-live    { background: rgba(45,212,191,0.15); color: var(--accent); border: 1px solid rgba(45,212,191,0.32); }
-.pill-idle    { background: rgba(255,255,255,0.04); color: var(--text-3); border: 1px solid var(--tile-border); }
+.wx-temp {
+  font-family: var(--fn);
+  font-size: 88px;
+  color: #ffffff;
+  line-height: 0.88;
+  letter-spacing: -1px;
+}
 
-.stream-profile {
-  font-family: var(--font-n);
-  font-size: clamp(46px, 6vw, 80px);
-  color: var(--text-1); line-height: 1;
+.wx-cond {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+}
+
+.wx-range {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.wx-hi   { color: rgba(255, 205, 110, 0.9); }
+.wx-lo   { color: rgba(140, 185, 255, 0.9); }
+.wx-wind { color: rgba(255, 255, 255, 0.4); font-weight: 400; }
+
+/* 3-day forecast cards — frosted glass, OnePlus style */
+.wx-forecast {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.wx-fc-card {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--rsm);
+  padding: 9px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  animation: tileIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.wx-fc-day {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.wx-fc-icon { font-size: 20px; line-height: 1; }
+
+.wx-fc-hi {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 205, 110, 0.95);
+}
+
+.wx-fc-lo {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(140, 185, 255, 0.8);
+}
+
+/* ─── STREAMING — large centrepiece tile ────────────────────────────────────*/
+.stream-tile {
+  grid-area: stream;
+  transition: border-color 0.5s ease, background var(--tt);
+}
+
+.s-live {
+  border-color: rgba(45, 212, 191, 0.32);
+  background: linear-gradient(170deg, #0d2230 0%, var(--surface) 60%) !important;
+}
+
+.s-pill {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+.pill-on {
+  background: rgba(45, 212, 191, 0.15);
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  /* Gentle opacity pulse — compositor only, no layout thrash */
+  animation: livePulse 2.8s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+.pill-off {
+  background: var(--s2);
+  color: var(--t3);
+  border: 1px solid var(--border);
+}
+
+/* Profile text fills the available space */
+.s-profile-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.s-profile {
+  font-family: var(--fn);
+  font-size: clamp(70px, 9vw, 120px);
+  color: var(--t1);
+  line-height: 0.9;
+  letter-spacing: 2px;
   transition: color 0.4s ease;
 }
-.s-on .stream-profile { color: var(--accent); }
 
-.stream-ladder { display: flex; align-items: flex-end; gap: 10px; }
-.ladder-col    { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.ladder-bar {
-  width: 30px; border-radius: 5px;
-  background: rgba(255,255,255,0.06); border: 1px solid var(--tile-border);
-  transition: background 0.4s ease, box-shadow 0.4s ease, border-color 3.5s ease;
+.s-live .s-profile { color: var(--accent); }
+
+/* Quality signal bars */
+.s-ladder {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
 }
-.ladder-bar.bar-on    { background: var(--teal); border-color: var(--accent); }
-.s-on .ladder-bar.bar-on { background: var(--accent); box-shadow: 0 0 16px rgba(45,212,191,0.38); }
-.ladder-lbl { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-3); }
-.stream-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
 
-/* ─── STOCKS — rotating single tile ─────────────────────────────────────────*/
-.stocks-tile  { grid-area: stocks; justify-content: center; }
-.stocks-body  { display: flex; flex-direction: column; gap: 10px; height: 100%; justify-content: center; }
-.stock-row    { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.stock-left   { display: flex; flex-direction: column; gap: 4px; }
-.stock-name   { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-3); }
-.stock-price  { font-family: var(--font-n); font-size: clamp(32px, 4vw, 50px); color: var(--text-1); line-height: 1; font-variant-numeric: tabular-nums; }
-.stock-chg    { font-size: 15px; font-weight: 600; }
-.stock-sfx    { font-size: 11px; opacity: 0.55; }
-.stock-dots   { display: flex; gap: 6px; justify-content: center; }
-.sdot         { width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); transition: background 0.3s, transform 0.3s; }
-.sdot.sdot-on { background: var(--accent); transform: scale(1.35); }
+.s-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
 
-/* Sparkline SVG */
-.sparkline    { width: 110px; height: 42px; flex-shrink: 0; }
-.spark-empty  { width: 110px; height: 42px; }
+.s-bar {
+  width: 28px;
+  border-radius: 5px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.s-bar-on {
+  background: rgba(45, 212, 191, 0.25);
+  border-color: var(--accent);
+}
+
+.s-live .s-bar-on {
+  background: var(--accent);
+  box-shadow: 0 0 14px rgba(45, 212, 191, 0.35);
+}
+
+.s-bar-lbl {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--t3);
+  transition: color var(--tt);
+}
+
+.s-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t2);
+  flex-wrap: wrap;
+  transition: color var(--tt);
+}
+
+.s-dim { color: var(--t3); }
+
+/* ─── MARKETS — rotating card, strong readable names ────────────────────────*/
+.mkt-tile {
+  grid-area: markets;
+  padding: 14px 22px;
+  justify-content: center;
+  gap: 6px;
+}
+
+.mkt-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: opacity 0.38s ease, transform 0.38s ease;
+}
+
+.mkt-in  { opacity: 1; transform: translateX(0); }
+.mkt-out { opacity: 0; transform: translateX(24px); }
+
+.mkt-left  { display: flex; flex-direction: column; gap: 4px; }
+.mkt-right { display: flex; align-items: center; }
+
+/* Stock name — was the main complaint: dark + tiny */
+.mkt-name {
+  font-family: var(--fu);
+  font-size: 17px;           /* bigger */
+  font-weight: 800;          /* boldest Outfit weight */
+  color: rgba(255,255,255,0.88); /* very light, never dark */
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mkt-price {
+  font-family: var(--fn);
+  font-size: 50px;
+  color: var(--t1);
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
+.mkt-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mkt-chg {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.mkt-up { color: #34d399; }
+.mkt-dn { color: #f87171; }
+
+.mkt-suf {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--t3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: color var(--tt);
+}
+
+/* Rotation indicator dots */
+.mkt-dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.mkt-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--t3);
+  transition: background 0.35s ease, transform 0.35s ease;
+}
+
+.mkt-dot-on {
+  background: var(--accent);
+  transform: scale(1.4);
+  transition: color var(--tt);
+}
 
 /* ─── Footer ─────────────────────────────────────────────────────────────────*/
-.dash-footer { grid-area: footer; font-size: 10px; color: var(--text-3); text-align: right; align-self: center; padding-right: 4px; letter-spacing: 0.05em; }
-
-/* ─── Reduced motion (respects macOS Accessibility → Reduce Motion) ──────────*/
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+.dash-footer {
+  grid-area: footer;
+  font-size: 10px;
+  color: var(--t3);
+  text-align: right;
+  align-self: center;
+  padding-right: 4px;
+  letter-spacing: 0.04em;
+  transition: color var(--tt);
 }
 
-/* ─── Narrow screen fallback ─────────────────────────────────────────────────*/
-@media (max-width: 860px) {
+/* ─── Reduced motion — respects macOS Accessibility → Reduce Motion ──────────*/
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:        0.01ms !important;
+    animation-iteration-count: 1      !important;
+    transition-duration:       0.01ms !important;
+  }
+}
+
+/* ─── Smaller screen fallback ────────────────────────────────────────────────*/
+@media (max-width: 920px) {
   .dashboard {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto auto auto auto;
-    grid-template-areas: "clock wx" "stream wx" "stream ag" "stocks stocks" "footer footer";
+    grid-template-rows: auto;
+    grid-template-areas:
+      "clock   date"
+      "stream  stream"
+      "guard   weather"
+      "markets markets"
+      "footer  footer";
     height: auto;
+    overflow-y: auto;
   }
   html, body { overflow: auto; }
 }
