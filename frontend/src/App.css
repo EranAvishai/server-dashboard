@@ -1,4 +1,3 @@
-/* ─── Fonts ──────────────────────────────────────────────────────────────────*/
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
@@ -29,22 +28,20 @@ html,body {
 }
 
 /* ─── GRID ───────────────────────────────────────────────────────────────────
-   ┌──────────┬──────────────────────┬─────────────┐
-   │  clock   │      weather         │    date      │  row1 = 80px
-   ├──────────┤      (CENTER HERO)   ├─────────────┤
-   │  stream  │                      │   adguard   │  row2 = 1fr
-   ├──────────┼──────────────────────┴─────────────┤
-   │  stream  │      markets (full width bottom)   │  row3 = 200px
-   └──────────┴────────────────────────────────────┘
+   Clock is 20% taller: 80px → 96px
+   Streaming tile spans rows 2+3 (shorter overall since row1 is taller)
 
-   Stream = LEFT (not center!)
-   Weather = CENTER HERO
-   AdGuard = RIGHT (smaller)
+   col1 = 215px  │  col2 = 1fr  │  col3 = 250px
+   ─────────────────────────────────────────────
+   clock          weather         date          96px
+   stream         weather         adguard        1fr
+   stream         markets         markets       195px
+   footer                                        22px
    ─────────────────────────────────────────────────────────────────────────── */
 .dashboard {
   display: grid;
   grid-template-columns: 215px 1fr 250px;
-  grid-template-rows: 80px 1fr 200px 22px;
+  grid-template-rows: 96px 1fr 195px 22px;
   grid-template-areas:
     "clock   weather  date"
     "stream  weather  adguard"
@@ -60,8 +57,8 @@ html,body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r);
-  padding: 16px 18px;
-  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 8px;
   position: relative; overflow: hidden;
   transition: background var(--tt), border-color var(--tt);
   animation: tileIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
@@ -74,260 +71,192 @@ html,body {
   content:''; position:absolute; top:0; left:10%; right:10%; height:1px;
   background:rgba(255,255,255,0.09); pointer-events:none;
 }
+.tile-label { font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--t3); transition:color var(--tt); }
+.tile-hdr   { display:flex; align-items:center; justify-content:space-between; }
+.tile-badge { font-size:11px; font-weight:600; color:var(--accent); background:var(--acd); padding:2px 9px; border-radius:20px; transition:color var(--tt), background var(--tt); }
 
-.tile-label {
-  font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase;
-  color:var(--t3); transition:color var(--tt);
-}
-.tile-hdr { display:flex; align-items:center; justify-content:space-between; }
-.tile-badge {
-  font-size:11px; font-weight:600; color:var(--accent); background:var(--acd);
-  padding:2px 9px; border-radius:20px; transition:color var(--tt), background var(--tt);
-}
+/* ─── CLOCK — 20% taller tile, font fills height ─────────────────────────────
+   grid row is now 96px. Padding 8px each side = 80px inner. Font 78px fits.  */
+.clock-tile { grid-area:clock; justify-content:center; padding:8px 16px; }
+.clock-row  { display:flex; align-items:baseline; gap:5px; }
 
-/* ─── CLOCK ──────────────────────────────────────────────────────────────────*/
-.clock-tile { grid-area:clock; justify-content:center; }
-.clock-row  { display:flex; align-items:baseline; gap:4px; }
 .clock-hhmm {
-  font-family:var(--fn); font-size:68px; color:var(--t1);
-  line-height:0.9; letter-spacing:2px; font-variant-numeric:tabular-nums;
+  font-family: var(--fn);
+  /* Bebas Neue at this size fills the 96px tile perfectly */
+  font-size: 80px;
+  color: var(--t1);
+  line-height: 0.9;
+  letter-spacing: 3px;
+  font-variant-numeric: tabular-nums;
 }
 .clock-ss {
-  font-family:var(--fn); font-size:28px; color:var(--t3);
-  align-self:flex-end; font-variant-numeric:tabular-nums;
-  transition:color var(--tt);
+  font-family: var(--fn);
+  font-size: 32px;
+  color: var(--t3);
+  align-self: flex-end;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--tt);
+  padding-bottom: 4px;
 }
 
-/* ─── DATE ───────────────────────────────────────────────────────────────────
-   Same column as AdGuard (col3=250px), sits above it. Same width as weather? 
-   No — it's col3 width which is 250px. That's fine, it anchors the right side.*/
-.date-tile { grid-area:date; justify-content:center; align-items:flex-end; text-align:right; }
-.date-weekday {
-  font-family:var(--fn); font-size:34px; color:var(--accent); line-height:0.95;
-  letter-spacing:1px; transition:color var(--tt);
-}
-.date-rest { font-size:13px; font-weight:400; color:var(--t2); margin-top:3px; transition:color var(--tt); }
+/* ─── DATE ───────────────────────────────────────────────────────────────────*/
+.date-tile   { grid-area:date; justify-content:center; align-items:flex-end; text-align:right; }
+.date-weekday { font-family:var(--fn); font-size:34px; color:var(--accent); line-height:0.95; letter-spacing:1px; transition:color var(--tt); }
+.date-rest   { font-size:13px; font-weight:400; color:var(--t2); margin-top:3px; transition:color var(--tt); }
 
-/* ─── WEATHER (CENTER HERO, spans rows 1+2) ──────────────────────────────────*/
+/* ─── WEATHER ────────────────────────────────────────────────────────────────*/
 .wx-tile {
-  grid-area: weather;
-  background: var(--wx-grad) !important;
-  gap: 8px;
-  transition: background var(--tt) !important;
-  justify-content: space-between;
+  grid-area:weather;
+  background:var(--wx-grad) !important;
+  gap:8px; justify-content:space-between;
+  transition:background var(--tt) !important;
 }
-.wx-loc {
-  font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
-  color:rgba(255,255,255,0.42);
-}
-.wx-retry-btn {
-  margin-top: 8px;
-  padding: 8px 20px;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 20px;
-  color: rgba(255,255,255,0.8);
-  font-family: var(--fu);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.wx-retry-btn:hover { background: rgba(255,255,255,0.18); }
-
-.wx-placeholder {
-  flex:1; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:8px;
-}
-.wx-ph-temp { font-family:var(--fn); font-size:100px; color:rgba(255,255,255,0.18); line-height:0.9; }
+.wx-loc { font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:rgba(255,255,255,0.42); }
+.wx-placeholder { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
+.wx-ph-temp  { font-family:var(--fn); font-size:90px; color:rgba(255,255,255,0.15); line-height:0.9; }
 .wx-ph-label { font-size:14px; color:rgba(255,255,255,0.3); font-weight:500; }
-
-.wx-main { display:flex; align-items:center; gap:12px; }
-@keyframes wxFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
-.wx-icon { font-size:56px; line-height:1; }
-.wx-temp {
-  font-family:var(--fn); font-size:120px; color:#fff;
-  line-height:0.88; letter-spacing:-1px;
+.wx-retry-btn {
+  padding:8px 20px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);
+  border-radius:20px; color:rgba(255,255,255,0.8); font-family:var(--fu); font-size:13px;
+  font-weight:600; cursor:pointer; transition:background 0.2s;
 }
-.wx-cond { font-size:16px; font-weight:500; color:rgba(255,255,255,0.72); }
-.wx-range { display:flex; gap:14px; font-size:14px; font-weight:600; }
-.wx-hi   { color:rgba(255,210,100,0.95); }
-.wx-lo   { color:rgba(140,186,255,0.95); }
-.wx-wind { color:rgba(255,255,255,0.36); font-weight:400; }
-
-/* OnePlus-style forecast cards */
-.wx-forecast { display:flex; gap:10px; }
+.wx-retry-btn:hover { background:rgba(255,255,255,0.18); }
+.wx-main  { display:flex; align-items:center; gap:12px; }
+@keyframes wxFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+.wx-icon  { font-size:52px; line-height:1; }
+.wx-temp  { font-family:var(--fn); font-size:110px; color:#fff; line-height:0.88; letter-spacing:-1px; }
+.wx-cond  { font-size:15px; font-weight:500; color:rgba(255,255,255,0.72); }
+.wx-range { display:flex; gap:14px; font-size:13px; font-weight:600; }
+.wx-hi    { color:rgba(255,210,100,0.95); }
+.wx-lo    { color:rgba(140,186,255,0.95); }
+.wx-wind  { color:rgba(255,255,255,0.36); font-weight:400; }
+.wx-forecast { display:flex; gap:8px; }
 .wx-fc-card {
   flex:1; background:rgba(255,255,255,0.09); border:1px solid rgba(255,255,255,0.13);
-  border-radius:var(--rsm); padding:10px 6px;
-  display:flex; flex-direction:column; align-items:center; gap:5px;
+  border-radius:var(--rsm); padding:10px 6px; display:flex; flex-direction:column;
+  align-items:center; gap:5px;
   animation:tileIn 0.5s cubic-bezier(0.22,1,0.36,1) both;
 }
 .wx-fc-day  { font-size:10px; font-weight:800; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.48); }
-.wx-fc-icon { font-size:24px; line-height:1; }
+.wx-fc-icon { font-size:22px; line-height:1; }
 .wx-fc-hi   { font-size:14px; font-weight:700; color:rgba(255,210,100,0.95); }
 .wx-fc-lo   { font-size:12px; font-weight:500; color:rgba(140,186,255,0.82); }
 
-/* ─── ADGUARD (compact right panel, rows 2 only) ─────────────────────────────*/
+/* ─── ADGUARD ────────────────────────────────────────────────────────────────*/
 .ag-tile { grid-area:adguard; gap:10px; }
-
-/* Vertical stat rows — fits narrow 250px column */
-.ag-stats { display:flex; flex-direction:column; gap:6px; }
-.ag-row {
-  display:flex; align-items:baseline; justify-content:space-between;
-  padding: 2px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-.ag-label {
-  font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase;
-  color:var(--t3); transition:color var(--tt);
-}
-.ag-val {
-  font-family:var(--fn); font-size:38px; color:var(--t1);
-  line-height:0.9; font-variant-numeric:tabular-nums;
-}
+.ag-stats { display:flex; flex-direction:column; gap:5px; }
+.ag-row   { display:flex; align-items:baseline; justify-content:space-between; padding:1px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.ag-label { font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:var(--t3); transition:color var(--tt); }
+.ag-val   { font-family:var(--fn); font-size:36px; color:var(--t1); line-height:0.9; font-variant-numeric:tabular-nums; }
 .ag-accent { color:var(--accent); transition:color var(--tt); }
-
 .ag-bar-track { height:3px; background:var(--s2); border-radius:2px; overflow:hidden; }
-.ag-bar-fill  {
-  height:100%; background:var(--accent); border-radius:2px;
-  transition:width 0.6s ease, background var(--tt);
-}
-
-.ag-chart-wrap { flex:1; display:flex; flex-direction:column; gap:5px; min-height:0; }
+.ag-bar-fill  { height:100%; background:var(--accent); border-radius:2px; transition:width 0.6s ease, background var(--tt); }
+.ag-chart-wrap { flex:1; display:flex; flex-direction:column; gap:4px; min-height:0; }
 .ag-svg        { width:100%; flex:1; min-height:0; display:block; }
-.ag-axis {
-  display:flex; justify-content:space-between; font-size:9px; font-weight:600;
-  color:var(--t3); letter-spacing:0.05em; transition:color var(--tt);
+.ag-axis       { display:flex; justify-content:space-between; font-size:9px; font-weight:600; color:var(--t3); letter-spacing:0.05em; transition:color var(--tt); }
+.chart-empty   { font-size:12px; color:var(--t3); }
+
+/* ─── STREAMING — vertical arc gauge ────────────────────────────────────────
+   Left column, spans rows 2+3.
+   Layout: header → gauge SVG (flex:1) → readouts (stacked numbers)         */
+.stream-tile {
+  grid-area: stream;
+  gap: 8px;
+  transition: border-color 0.5s ease, background var(--tt);
 }
-
-/* ─── MARKETS — full tile, huge price + large sparkline graph ────────────────
-   Row height 200px. Tile spans center+right = ~1015px wide.                 */
-.mkt-tile {
-  grid-area: markets;
-  padding: 14px 22px;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.mkt-inner {
-  display: flex;
-  align-items: stretch;
-  gap: 24px;
-  flex: 1;
-  min-height: 0;
-  transition: opacity 0.35s ease, transform 0.35s ease;
-}
-.mkt-in  { opacity:1; transform:translateX(0); }
-.mkt-out { opacity:0; transform:translateX(28px); }
-
-/* Text: name + price + change — fills left portion */
-.mkt-text {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  flex: 1;
-  min-width: 0;
-}
-
-/* Stock name — very readable, light, bold */
-.mkt-name {
-  font-family: var(--fu);
-  font-size: 20px;
-  font-weight: 800;
-  color: rgba(255,255,255,0.90);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-
-/* Price — fills most of the tile height */
-.mkt-price {
-  font-family: var(--fn);
-  font-size: clamp(72px, 8vw, 108px);
-  color: var(--t1);
-  line-height: 0.88;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 1px;
-  /* No wrapping — prices on one line */
-  white-space: nowrap;
-}
-
-.mkt-meta { display:flex; align-items:center; gap:12px; }
-.mkt-chg  { font-size:20px; font-weight:700; }
-.mkt-up   { color:#34d399; }
-.mkt-dn   { color:#f87171; }
-.mkt-suf  { font-size:13px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:0.08em; transition:color var(--tt); }
-
-/* Graph fills the right portion, full height */
-.mkt-graph {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-/* Rotation dots */
-.mkt-dots { display:flex; gap:6px; justify-content:flex-end; }
-.mkt-dot  { width:5px; height:5px; border-radius:50%; background:var(--t3); transition:background 0.35s, transform 0.35s; }
-.mkt-dot-on { background:var(--accent); transform:scale(1.4); }
-
-/* ─── STREAMING (left, tall, rows 2+3) ───────────────────────────────────────*/
-.stream-tile { grid-area:stream; transition:border-color 0.5s, background var(--tt); }
 .s-live {
-  border-color:rgba(45,212,191,0.35);
-  background:linear-gradient(170deg,#0c2232 0%,var(--surface) 65%) !important;
+  border-color: rgba(45,212,191,0.35);
+  background: linear-gradient(170deg, #0c2232 0%, var(--surface) 70%) !important;
 }
+
 .s-pill { font-size:10px; font-weight:800; letter-spacing:0.13em; padding:3px 9px; border-radius:20px; }
 .pill-on  { background:rgba(45,212,191,0.15); color:#2dd4bf; border:1px solid rgba(45,212,191,0.3); animation:livePulse 2.8s ease-in-out infinite; }
 .pill-off { background:var(--s2); color:var(--t3); border:1px solid var(--border); }
 @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
-.s-profile-wrap { flex:1; display:flex; align-items:center; }
-.s-profile {
-  font-family:var(--fn);
-  font-size: clamp(60px,8vw,106px);
-  color:var(--t1); line-height:0.9; letter-spacing:2px;
-  transition:color 0.4s;
+/* Gauge wrapper — fills available height */
+.s-gauge-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
 }
-.s-live .s-profile { color:var(--accent); }
 
-.s-ladder { display:flex; align-items:flex-end; gap:10px; }
-.s-col    { display:flex; flex-direction:column; align-items:center; gap:5px; }
-.s-bar    { width:26px; border-radius:5px; background:var(--s2); border:1px solid var(--border); transition:background 0.4s, border-color 0.4s, box-shadow 0.4s; }
-.s-bar-on { background:rgba(45,212,191,0.22); border-color:var(--accent); }
-.s-live .s-bar-on { background:var(--accent); box-shadow:0 0 12px rgba(45,212,191,0.3); }
-.s-lbl    { font-size:9px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--t3); transition:color var(--tt); }
-.s-meta   { display:flex; gap:12px; flex-wrap:wrap; font-size:13px; font-weight:500; color:var(--t2); transition:color var(--tt); }
-.s-dim    { color:var(--t3); }
+/* ── Readouts: speed + peers stacked, large and bright ── */
+.s-readouts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.s-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1;
+  padding: 3px 0;
+}
+
+.s-readout-val {
+  font-family: var(--fn);
+  font-size: 34px;         /* large, fills width nicely */
+  color: #ffffff;          /* pure white — much brighter than before */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  line-height: 0.9;
+  transition: color 0.4s ease;
+}
+
+.s-live .s-readout-val { color: #2dd4bf; }  /* teal when streaming */
+
+.s-readout-unit {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t2);
+  transition: color var(--tt);
+}
+
+.s-readout-dim .s-readout-val { color: var(--t3); }
+.s-readout-dim .s-readout-unit { color: var(--t3); }
+
+/* ─── MARKETS ────────────────────────────────────────────────────────────────*/
+.mkt-tile  { grid-area:markets; padding:14px 22px; flex-direction:column; justify-content:space-between; }
+.mkt-inner { display:flex; align-items:stretch; gap:24px; flex:1; min-height:0; transition:opacity 0.35s ease, transform 0.35s ease; }
+.mkt-in    { opacity:1; transform:translateX(0); }
+.mkt-out   { opacity:0; transform:translateX(28px); }
+.mkt-text  { display:flex; flex-direction:column; justify-content:space-between; flex:1; min-width:0; }
+.mkt-right { display:flex; align-items:center; }
+.mkt-graph { display:flex; align-items:center; flex-shrink:0; }
+.mkt-name  { font-family:var(--fu); font-size:20px; font-weight:800; color:rgba(255,255,255,0.90); letter-spacing:0.04em; text-transform:uppercase; line-height:1; }
+.mkt-price { font-family:var(--fn); font-size:clamp(72px,8vw,108px); color:var(--t1); line-height:0.88; font-variant-numeric:tabular-nums; letter-spacing:1px; white-space:nowrap; }
+.mkt-meta  { display:flex; align-items:center; gap:12px; }
+.mkt-chg   { font-size:20px; font-weight:700; }
+.mkt-up    { color:#34d399; }
+.mkt-dn    { color:#f87171; }
+.mkt-suf   { font-size:13px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:0.08em; transition:color var(--tt); }
+.mkt-dots  { display:flex; gap:6px; justify-content:flex-end; }
+.mkt-dot   { width:5px; height:5px; border-radius:50%; background:var(--t3); transition:background 0.35s, transform 0.35s; }
+.mkt-dot-on { background:var(--accent); transform:scale(1.4); }
 
 /* ─── Footer ─────────────────────────────────────────────────────────────────*/
-.dash-footer {
-  grid-area:footer; font-size:10px; color:var(--t3);
-  text-align:right; align-self:center; padding-right:4px;
-  letter-spacing:0.04em; transition:color var(--tt);
-}
+.dash-footer { grid-area:footer; font-size:10px; color:var(--t3); text-align:right; align-self:center; padding-right:4px; letter-spacing:0.04em; transition:color var(--tt); }
 
 /* ─── Reduced motion ─────────────────────────────────────────────────────────*/
 @media (prefers-reduced-motion:reduce) {
-  *,*::before,*::after {
-    animation-duration:0.01ms !important;
-    animation-iteration-count:1 !important;
-    transition-duration:0.01ms !important;
-  }
+  *,*::before,*::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; }
 }
 
 /* ─── Narrow fallback ────────────────────────────────────────────────────────*/
 @media (max-width:900px) {
   .dashboard {
-    grid-template-columns:1fr 1fr;
-    grid-template-rows:auto;
-    grid-template-areas:
-      "clock   date"
-      "stream  stream"
-      "weather weather"
-      "adguard adguard"
-      "markets markets"
-      "footer  footer";
+    grid-template-columns:1fr 1fr; grid-template-rows:auto;
+    grid-template-areas: "clock date" "stream stream" "weather weather" "adguard adguard" "markets markets" "footer footer";
     height:auto;
   }
   html,body { overflow:auto; }
