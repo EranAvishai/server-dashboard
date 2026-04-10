@@ -100,9 +100,9 @@ html,body {
 }
 
 /* ─── DATE ───────────────────────────────────────────────────────────────────*/
-.date-tile   { grid-area:date; justify-content:center; align-items:flex-end; text-align:right; }
+.date-tile   { grid-area:date; justify-content:center; align-items:center; text-align:center; }
 .date-weekday { font-family:var(--fn); font-size:34px; color:var(--accent); line-height:0.95; letter-spacing:1px; transition:color var(--tt); }
-.date-rest   { font-size:13px; font-weight:400; color:var(--t2); margin-top:3px; transition:color var(--tt); }
+.date-rest   { font-size:15px; font-weight:700; color:var(--t2); margin-top:3px; transition:color var(--tt); }
 
 /* ─── WEATHER ────────────────────────────────────────────────────────────────*/
 .wx-tile {
@@ -121,11 +121,11 @@ html,body {
   font-weight:600; cursor:pointer; transition:background 0.2s;
 }
 .wx-retry-btn:hover { background:rgba(255,255,255,0.18); }
-.wx-main  { display:flex; align-items:center; gap:12px; }
+.wx-main  { display:flex; align-items:center; gap:12px; justify-content:center; }
 @keyframes wxFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
 .wx-icon  { font-size:52px; line-height:1; }
 .wx-temp  { font-family:var(--fn); font-size:110px; color:#fff; line-height:0.88; letter-spacing:-1px; }
-.wx-cond  { font-size:15px; font-weight:500; color:rgba(255,255,255,0.72); }
+.wx-cond  { font-size:15px; font-weight:500; color:rgba(255,255,255,0.72); text-align:center; }
 .wx-range { display:flex; gap:14px; font-size:13px; font-weight:600; }
 .wx-hi    { color:rgba(255,210,100,0.95); }
 .wx-lo    { color:rgba(140,186,255,0.95); }
