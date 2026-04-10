@@ -2,212 +2,118 @@ const express = require("express");
 const path    = require("path");
 const { exec } = require("child_process");
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 8787;
 
-const ADGUARD_BASE  = process.env.ADGUARD_BASE   || "http://127.0.0.1:3000";
-const ADGUARD_USER  = process.env.ADGUARD_USER   || "";
-const ADGUARD_PASS  = process.env.ADGUARD_PASS   || "";
-const STREAMIO_PORT = process.env.STREAMIO_PORT  || "11470";
-const TV_IP         = process.env.TV_IP          || "192.168.1.110";
+const ADGUARD_BASE  = process.env.ADGUARD_BASE  || "http://127.0.0.1:3000";
+const ADGUARD_USER  = process.env.ADGUARD_USER  || "";
+const ADGUARD_PASS  = process.env.ADGUARD_PASS  || "";
+const STREAMIO_PORT = process.env.STREAMIO_PORT || "11470";
+const TV_IP         = process.env.TV_IP         || "192.168.1.110";
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
 
-// ─── Caches ───────────────────────────────────────────────────────────────────
+// ─── TTLs ─────────────────────────────────────────────────────────────────────
+const MARKET_TTL_MS   = 16 * 60 * 1000;
+const ADGUARD_TTL_MS  = 30 * 1000;
+const PLAYBACK_TTL_MS = 15 * 1000;
+const LSOF_TTL_MS     = 10 * 1000;
+const NETTOP_TTL_MS   = 30 * 1000;
+
+// How long (ms) to keep Stremio "active" after the last confirmed connection
+// even if lsof stops seeing it. 3 minutes handles brief idle gaps.
+const STREMIO_GRACE_MS = 3 * 60 * 1000;
+
+// ─── Cache buckets ────────────────────────────────────────────────────────────
 let marketCache   = { ts: 0, data: null };
 let adguardCache  = { ts: 0, data: null };
 let playbackCache = { ts: 0, data: null };
-let weatherCache  = { ts: 0, data: null };   // ← fetched server-side, no browser CORS
 let lsofCache     = { ts: 0, data: [] };
 let nettopCache   = { ts: 0, data: 0 };
-let lastTvSeenAt  = 0;
-
-const MARKET_TTL_MS   = 16 * 60 * 1000;
-const ADGUARD_TTL_MS  =      30 * 1000;
-const LSOF_TTL_MS     =      10 * 1000;
-const NETTOP_TTL_MS   =      30 * 1000;
-const PLAYBACK_TTL_MS =      12 * 1000;
-const WEATHER_TTL_MS  =  10 * 60 * 1000;
-
-const MARKET_ASSETS = [
-  { key: "sp500", label: "S&P 500",  symbol: "^GSPC",     suffix: "USD" },
-  { key: "ta125", label: "TA-125",   symbol: "^TA125.TA", suffix: "ILS" },
-  { key: "gold",  label: "Gold",     symbol: "GC=F",       suffix: "USD" },
-  { key: "btc",   label: "Bitcoin",  symbol: "BTC-USD",    suffix: "USD" },
-];
+let lastTvSeenAt  = 0;       // last time TV_IP had an ESTABLISHED connection
+let lastStremioProcessSeenAt = 0; // last time Stremio process was alive
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function basicAuthHeader() {
-  if (!ADGUARD_USER || !ADGUARD_PASS) return {};
-  return { Authorization: "Basic " + Buffer.from(`${ADGUARD_USER}:${ADGUARD_PASS}`).toString("base64") };
+function run(cmd, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    const child = exec(cmd, { timeout: timeoutMs }, (err, stdout) => {
+      resolve(err ? "" : stdout);
+    });
+    // ensure no zombie on timeout
+    child.on("error", () => resolve(""));
+  });
 }
 
-async function fetchJson(url, options = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 8000);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  } finally {
-    clearTimeout(timeout);
+// ─── Stremio process detection ───────────────────────────────────────────────
+// Uses THREE independent signals and treats any single positive as "alive":
+//
+//   1. pgrep  – Is the Stremio process running? (most reliable, zero cost)
+//   2. lsof   – Is port 11470 actively bound? (reliable when streaming)
+//   3. grace  – Was it seen recently? (covers brief idle/buffering gaps)
+//
+async function isStremioAlive() {
+  // Signal 1: process exists (works even when idle, no active stream)
+  const pgrepOut = await run("pgrep -x Stremio || pgrep -x stremio || pgrep -fi stremio.app", 3000);
+  if (pgrepOut.trim().length > 0) {
+    lastStremioProcessSeenAt = Date.now();
+    return true;
   }
-}
 
-function execPromise(cmd, ms = 20000) {
-  return new Promise((res, rej) => {
-    exec(cmd, { timeout: ms }, (err, stdout) => err ? rej(err) : res({ stdout }));
-  });
-}
+  // Signal 2: port is bound (confirms the server is up)
+  const lsofOut = await run(`lsof -i :${STREAMIO_PORT} -sTCP:LISTEN -n -P 2>/dev/null`, 4000);
+  if (lsofOut.trim().length > 0) {
+    lastStremioProcessSeenAt = Date.now();
+    return true;
+  }
 
-// ─── Weather (server-side fetch — avoids any browser CORS issues) ─────────────
-// Weather — uses native https module (not fetch) to avoid any proxy/TLS quirks
-// GMT+3 = Israel Standard/Summer time, avoids the Asia/Jerusalem slash encoding issue
-const https = require("https");
-const WEATHER_URL =
-  "https://api.open-meteo.com/v1/forecast" +
-  "?latitude=31.93&longitude=34.80" +
-  "&current_weather=true" +
-  "&daily=weathercode,temperature_2m_max,temperature_2m_min" +
-  "&forecast_days=4" +
-  "&timezone=auto";
-
-function httpsGet(url, timeoutMs = 15000) {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { "User-Agent": "server-dashboard/1.0" } }, (res) => {
-      if (res.statusCode !== 200) {
-        res.resume();
-        return reject(new Error(`HTTP ${res.statusCode}`));
-      }
-      let body = "";
-      res.setEncoding("utf8");
-      res.on("data", chunk => { body += chunk; });
-      res.on("end", () => {
-        try { resolve(JSON.parse(body)); }
-        catch (e) { reject(new Error("JSON parse failed: " + e.message)); }
-      });
-    });
-    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error("Timeout")); });
-    req.on("error", reject);
-  });
-}
-
-let weatherRetryTimer = null;
-let weatherLastError  = null;
-
-// Try fetching via curl as a fallback — curl works reliably on macOS regardless of Node's network stack
-function fetchWeatherViaCurl() {
-  return new Promise((resolve, reject) => {
-    const url = "https://api.open-meteo.com/v1/forecast?latitude=31.93&longitude=34.80&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto";
-    exec(`curl -fsSL --max-time 15 "${url}"`, { timeout: 20000 }, (err, stdout) => {
-      if (err) return reject(new Error("curl: " + err.message));
-      try { resolve(JSON.parse(stdout)); }
-      catch (e) { reject(new Error("curl JSON parse: " + stdout.slice(0, 120))); }
-    });
-  });
-}
-
-async function refreshWeather() {
-  // Try native https first, fall back to curl
-  let data = null;
-  let lastErr = null;
-
-  try {
-    data = await httpsGet(WEATHER_URL, 15000);
-  } catch (e) {
-    lastErr = "https: " + e.message;
-    console.warn("Weather https failed:", e.message, "— trying curl");
-    try {
-      data = await fetchWeatherViaCurl();
-      lastErr = null;
-    } catch (e2) {
-      lastErr = lastErr + " | curl: " + e2.message;
+  // Signal 3: grace period – if Stremio was alive within the last 3 minutes,
+  // keep reporting it as active (handles buffering gaps, screensaver, etc.)
+  if (lastStremioProcessSeenAt > 0) {
+    const msSinceSeen = Date.now() - lastStremioProcessSeenAt;
+    if (msSinceSeen < STREMIO_GRACE_MS) {
+      return true; // still within grace window
     }
   }
 
-  if (data?.current_weather) {
-    weatherCache     = { ts: Date.now(), data };
-    weatherLastError = null;
-    if (weatherRetryTimer) { clearTimeout(weatherRetryTimer); weatherRetryTimer = null; }
-    console.log(`Weather OK: ${data.current_weather.temperature}°C code=${data.current_weather.weathercode}`);
-  } else {
-    weatherLastError = lastErr || "No current_weather in response";
-    console.warn("Weather failed:", weatherLastError, "— retry in 30s");
-    if (!weatherRetryTimer) {
-      weatherRetryTimer = setTimeout(() => { weatherRetryTimer = null; refreshWeather(); }, 30_000);
-    }
-  }
+  return false;
 }
 
-// ─── AdGuard ──────────────────────────────────────────────────────────────────
-async function refreshAdGuard() {
-  try {
-    const data = await fetchJson(`${ADGUARD_BASE}/control/stats`, {
-      headers: basicAuthHeader(), timeoutMs: 8000,
-    });
-    adguardCache = { ts: Date.now(), data };
-  } catch (e) { console.warn("AdGuard:", e.message); }
-}
-
-// ─── Markets ──────────────────────────────────────────────────────────────────
-async function fetchYahooQuote(asset) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.symbol)}` +
-              `?interval=1d&range=5d&includePrePost=false&events=div,splits`;
-  const json = await fetchJson(url, {
-    headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
-    timeoutMs: 10000,
-  });
-  const result = json?.chart?.result?.[0];
-  if (!result?.meta) throw new Error(`Bad response for ${asset.symbol}`);
-  const meta          = result.meta;
-  const price         = Number(meta.regularMarketPrice ?? meta.previousClose ?? 0);
-  const previousClose = Number(meta.chartPreviousClose ?? meta.previousClose ?? 0);
-  const changePercent = previousClose ? ((price - previousClose) / previousClose) * 100 : 0;
-  const asOf = new Date((meta.regularMarketTime || Math.floor(Date.now() / 1000)) * 1000)
-    .toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Jerusalem" });
-  const closes    = result.indicators?.quote?.[0]?.close ?? [];
-  const sparkline = closes.filter(v => v != null).slice(-5);  // last 5 days
-  return { key: asset.key, label: asset.label, symbol: asset.symbol, price, changePercent, suffix: asset.suffix, asOf, sparkline };
-}
-
-async function refreshMarkets() {
-  if (marketCache.data && Date.now() - marketCache.ts < MARKET_TTL_MS) return;
-  const results = [];
-  for (const asset of MARKET_ASSETS) {
-    try { results.push(await fetchYahooQuote(asset)); }
-    catch { results.push({ key: asset.key, label: asset.label, symbol: asset.symbol, price: 0, changePercent: 0, suffix: asset.suffix, asOf: "—", sparkline: [] }); }
-  }
-  marketCache = { ts: Date.now(), data: results };
-}
-
-// ─── lsof (cached) ────────────────────────────────────────────────────────────
+// ─── lsof full connection list (cached) ──────────────────────────────────────
 async function getLsofLines() {
-  if (lsofCache.data.length && Date.now() - lsofCache.ts < LSOF_TTL_MS) return lsofCache.data;
-  try {
-    const { stdout } = await execPromise("lsof -nP -iTCP -iUDP", 12000);
-    lsofCache = { ts: Date.now(), data: stdout.split("\n").filter(Boolean) };
+  if (lsofCache.data.length && Date.now() - lsofCache.ts < LSOF_TTL_MS) {
     return lsofCache.data;
-  } catch { lsofCache = { ts: Date.now(), data: [] }; return []; }
+  }
+  const raw = await run(
+    `lsof -nP -iTCP:${STREAMIO_PORT} -iUDP 2>/dev/null`,
+    6000
+  );
+  const lines = raw ? raw.split("\n").filter(Boolean) : [];
+  lsofCache = { ts: Date.now(), data: lines };
+  return lines;
 }
 
-// ─── nettop (cached) ──────────────────────────────────────────────────────────
+// ─── nettop sampling (cached, 30s TTL) ───────────────────────────────────────
 async function sampleExternalRateMbps() {
-  if (nettopCache.data !== null && Date.now() - nettopCache.ts < NETTOP_TTL_MS) return nettopCache.data;
+  if (Date.now() - nettopCache.ts < NETTOP_TTL_MS) return nettopCache.data;
   try {
-    const { stdout } = await execPromise("nettop -P -L 1 -J bytes_in,bytes_out -x", 15000);
-    let total = 0;
-    for (const line of stdout.split("\n").filter(Boolean)) {
-      if (!line.includes(",") || line.includes(TV_IP) || line.includes("127.0.0.1")) continue;
-      for (const col of line.split(",")) {
-        const t = col.trim();
-        if (/^[0-9]+$/.test(t)) { total += Number(t); break; }
+    const raw = await run("nettop -P -L 1 -t external -k time,bytes_in 2>/dev/null", 6000);
+    let totalBytesIn = 0;
+    for (const line of raw.split("\n").slice(1)) {
+      const cols = line.split(",");
+      for (const col of cols) {
+        const trimmed = col.trim();
+        if (/^\d+$/.test(trimmed)) { totalBytesIn += Number(trimmed); break; }
       }
     }
-    nettopCache = { ts: Date.now(), data: Number(((total * 8) / 1_000_000).toFixed(2)) };
-    return nettopCache.data;
-  } catch { nettopCache = { ts: Date.now(), data: 0 }; return 0; }
+    const mbps = Number(((totalBytesIn * 8) / 1_000_000).toFixed(2));
+    nettopCache = { ts: Date.now(), data: mbps };
+    return mbps;
+  } catch {
+    nettopCache = { ts: Date.now(), data: 0 };
+    return 0;
+  }
 }
 
-// ─── Stremio ──────────────────────────────────────────────────────────────────
+// ─── Profile classification ───────────────────────────────────────────────────
 function classifyProfile(mbps) {
   if (!mbps || isNaN(mbps) || mbps < 2) return "Idle";
   if (mbps >= 60) return "4K HDR";
@@ -215,89 +121,156 @@ function classifyProfile(mbps) {
   if (mbps >= 8)  return "1080p";
   return "Low bitrate";
 }
-const PRIVATE = ["127.0.0.1","->192.168.","->10.",
-  ...Array.from({length:16},(_,i)=>`->172.${16+i}.`)];
 
+// ─── TV connection counting ───────────────────────────────────────────────────
 function countTvConnections(lines) {
-  let n = 0;
-  for (const l of lines) {
-    if (l.includes(TV_IP) && l.includes(`:${STREAMIO_PORT}`) && l.includes("ESTABLISHED")) n++;
+  let active = 0;
+  for (const line of lines) {
+    if (!line.includes(TV_IP))              continue;
+    if (!line.includes(`:${STREAMIO_PORT}`)) continue;
+    if (!line.includes("ESTABLISHED"))      continue;
+    active++;
   }
-  if (n > 0) lastTvSeenAt = Date.now();
-  return { active: n, recent: lastTvSeenAt > 0 ? Math.round((Date.now()-lastTvSeenAt)/1000) : null, responseMs: n > 0 ? 20 : 0 };
-}
-function countExternalPeers(lines) {
-  let n = 0;
-  for (const l of lines) {
-    if (!l.includes("ESTABLISHED")) continue;
-    if (PRIVATE.some(r=>l.includes(r)) || l.includes(TV_IP) || l.includes(`:${STREAMIO_PORT}`)) continue;
-    n++;
-  }
-  return n;
+  if (active > 0) lastTvSeenAt = Date.now();
+  return {
+    active,
+    recent: lastTvSeenAt > 0 ? Math.round((Date.now() - lastTvSeenAt) / 1000) : null,
+    responseMs: active > 0 ? 20 : 0,
+  };
 }
 
+const PRIVATE_RANGES = [
+  "127.0.0.1", "->192.168.", "->10.",
+  ...Array.from({ length: 16 }, (_, i) => `->172.${16 + i}.`),
+];
+
+function countExternalPeerConnections(lines) {
+  let count = 0;
+  for (const line of lines) {
+    if (!line.includes("ESTABLISHED"))                       continue;
+    if (PRIVATE_RANGES.some((r) => line.includes(r)))       continue;
+    if (line.includes(TV_IP))                               continue;
+    if (line.includes(`:${STREAMIO_PORT}`))                 continue;
+    count++;
+  }
+  return count;
+}
+
+// ─── Playback refresh (background) ───────────────────────────────────────────
 async function refreshPlayback() {
   try {
-    const lines = await getLsofLines();
-    const tv    = countTvConnections(lines);
-    const ext   = countExternalPeers(lines);
-    const mbps  = await sampleExternalRateMbps();
-    const tpro  = classifyProfile(mbps);
-    let overall = "Idle";
-    if      (tv.active>0 && mbps>=60) overall = "4K HDR";
-    else if (tv.active>0 && mbps>=30) overall = "4K";
-    else if (tv.active>0 && mbps>=8)  overall = "1080p";
-    else if (tv.active>0)             overall = "Low bitrate";
-    playbackCache = { ts: Date.now(), data: {
-      tvIp: TV_IP, tvActive: tv.active>0, tvRecentSeconds: tv.recent,
-      localStatus: tv.active>0?"TV connected":"Idle", responseMs: tv.responseMs,
-      externalConnections: ext, externalMbps: mbps,
-      torrentProfile: tpro, overallProfile: overall,
-      stable: tv.active>0 && ext>0 && overall!=="Idle" && overall===tpro,
-    }};
-  } catch (e) { console.warn("Playback:", e.message); }
+    // Run process check and connection check in parallel
+    const [stremioAlive, lines] = await Promise.all([
+      isStremioAlive(),
+      getLsofLines(),
+    ]);
+
+    const tv                  = countTvConnections(lines);
+    const externalConnections = countExternalPeerConnections(lines);
+    const externalMbps        = await sampleExternalRateMbps();
+    const torrentProfile      = classifyProfile(externalMbps);
+
+    let overallProfile = "Idle";
+    if      (tv.active > 0 && externalMbps >= 60) overallProfile = "4K HDR";
+    else if (tv.active > 0 && externalMbps >= 30) overallProfile = "4K";
+    else if (tv.active > 0 && externalMbps >= 8)  overallProfile = "1080p";
+    else if (tv.active > 0)                        overallProfile = "Low bitrate";
+
+    const stable = tv.active > 0 && externalConnections > 0 &&
+                   overallProfile !== "Idle" && overallProfile === torrentProfile;
+
+    // stremioAlive = true means the app is open (even if no active stream)
+    // tvActive     = true means the TV is actively receiving data right now
+    playbackCache = {
+      ts: Date.now(),
+      data: {
+        tvIp:            TV_IP,
+        stremioOpen:     stremioAlive,          // NEW: app is running
+        tvActive:        tv.active > 0,         // TV has active connection
+        tvRecentSeconds: tv.recent,
+        localStatus:     tv.active > 0 ? "TV connected" : stremioAlive ? "App open" : "Idle",
+        responseMs:      tv.responseMs,
+        externalConnections,
+        externalMbps,
+        torrentProfile,
+        overallProfile,
+        stable,
+        // Grace info — useful for debugging from /api/streamio/status
+        stremioLastSeen: lastStremioProcessSeenAt > 0
+          ? Math.round((Date.now() - lastStremioProcessSeenAt) / 1000)
+          : null,
+      },
+    };
+  } catch (err) {
+    console.warn("Playback refresh failed:", err.message);
+  }
 }
 
-// ─── Background loops ─────────────────────────────────────────────────────────
+// ─── AdGuard refresh ─────────────────────────────────────────────────────────
+async function refreshAdGuard() {
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (ADGUARD_USER) {
+      headers["Authorization"] =
+        "Basic " + Buffer.from(`${ADGUARD_USER}:${ADGUARD_PASS}`).toString("base64");
+    }
+    const res  = await fetch(`${ADGUARD_BASE}/control/stats`, { headers });
+    const data = await res.json();
+    adguardCache = { ts: Date.now(), data };
+  } catch (err) {
+    console.warn("AdGuard refresh failed:", err.message);
+  }
+}
+
+// ─── Markets refresh ─────────────────────────────────────────────────────────
+const SYMBOLS = ["BTC-USD", "ETH-USD", "SPY", "QQQ", "GLD"];
+
+async function refreshMarkets() {
+  if (Date.now() - marketCache.ts < MARKET_TTL_MS) return; // still fresh
+  try {
+    const query  = SYMBOLS.map((s) => encodeURIComponent(s)).join(",");
+    const url    = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${query}`;
+    const res    = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    const json   = await res.json();
+    const assets = (json?.quoteResponse?.result ?? []).map((q) => ({
+      symbol:        q.symbol,
+      price:         q.regularMarketPrice,
+      change:        q.regularMarketChange,
+      changePercent: q.regularMarketChangePercent,
+      name:          q.shortName || q.symbol,
+    }));
+    marketCache = { ts: Date.now(), data: assets };
+  } catch (err) {
+    console.warn("Markets refresh failed:", err.message);
+  }
+}
+
+// ─── Background refresh loop ──────────────────────────────────────────────────
 async function startBackgroundRefresh() {
-  await Promise.allSettled([
-    refreshPlayback(), refreshAdGuard(), refreshMarkets(), refreshWeather()
-  ]);
+  await Promise.allSettled([refreshPlayback(), refreshAdGuard(), refreshMarkets()]);
+
   setInterval(refreshPlayback, PLAYBACK_TTL_MS);
   setInterval(refreshAdGuard,  ADGUARD_TTL_MS);
   setInterval(refreshMarkets,  5 * 60 * 1000);
-  setInterval(refreshWeather,  WEATHER_TTL_MS);
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.get("/api/all", (_req, res) => res.json({
-  adguard:   adguardCache.data  ?? null,
-  markets:   marketCache.data   ? { assets: marketCache.data } : null,
-  streaming: playbackCache.data ?? null,
-  weather:   weatherCache.data  ?? null,   // ← now included
-  ts: Date.now(),
-}));
-
-// Debug — open http://127.0.0.1:8787/api/weather/status to see what's happening
-app.get("/api/weather/status", (_req, res) => res.json({
-  loaded:     weatherCache.data != null,
-  age_s:      weatherCache.ts ? Math.round((Date.now() - weatherCache.ts) / 1000) : null,
-  temp:       weatherCache.data?.current_weather?.temperature ?? null,
-  retrying:   weatherRetryTimer != null,
-  last_error: weatherLastError,   // ← now shows exactly what's failing
-}));
-
-// Force-refresh weather on demand — hit this in browser if weather ever gets stuck
-app.get("/api/weather/refresh", async (_req, res) => {
-  await refreshWeather();
-  res.json({ ok: true, loaded: weatherCache.data != null, ts: weatherCache.ts });
+app.get("/api/all", (_req, res) => {
+  res.json({
+    adguard:   adguardCache.data ?? null,
+    markets:   marketCache.data  ? { assets: marketCache.data } : null,
+    streaming: playbackCache.data ?? null,
+    ts:        Date.now(),
+  });
 });
 
 app.get("/api/adguard/stats",   (_req, res) => res.json(adguardCache.data  ?? {}));
 app.get("/api/markets/quotes",  (_req, res) => res.json({ assets: marketCache.data ?? [] }));
 app.get("/api/streamio/status", (_req, res) => res.json(playbackCache.data ?? {}));
-app.get("/api/weather",         (_req, res) => res.json(weatherCache.data  ?? null));
-app.get("/health",              (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()) + "s" }));
+
+app.get("/health", (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
 app.use(express.static(FRONTEND_DIST));
 app.use((req, res) => {
@@ -305,6 +278,9 @@ app.use((req, res) => {
   res.sendFile(path.join(FRONTEND_DIST, "index.html"));
 });
 
-startBackgroundRefresh().then(() =>
-  app.listen(PORT, () => console.log(`Dashboard on http://127.0.0.1:${PORT}`))
-);
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+startBackgroundRefresh().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Dashboard listening on http://127.0.0.1:${PORT}`);
+  });
+});
