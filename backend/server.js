@@ -60,20 +60,32 @@ function execPromise(cmd, ms = 20000) {
 }
 
 // ─── Weather (server-side fetch — avoids any browser CORS issues) ─────────────
+// Weather URL — literal slash in timezone, NOT %2F (open-meteo returns 400 otherwise)
+const WEATHER_URL =
+  "https://api.open-meteo.com/v1/forecast" +
+  "?latitude=31.93&longitude=34.80" +
+  "&current_weather=true" +
+  "&daily=weathercode,temperature_2m_max,temperature_2m_min,time" +
+  "&forecast_days=4" +
+  "&timezone=Asia/Jerusalem";
+
+let weatherRetryTimer = null;
+
 async function refreshWeather() {
   try {
-    const data = await fetchJson(
-      "https://api.open-meteo.com/v1/forecast" +
-      "?latitude=31.93&longitude=34.80" +
-      "&current_weather=true" +
-      "&daily=weathercode,temperature_2m_max,temperature_2m_min,time" +
-      "&forecast_days=4" +
-      "&timezone=Asia%2FJerusalem",
-      { timeoutMs: 12000 }
-    );
+    const data = await fetchJson(WEATHER_URL, { timeoutMs: 15000 });
+    // Validate the response has what we need before caching
+    if (!data?.current_weather) throw new Error("Missing current_weather in response");
     weatherCache = { ts: Date.now(), data };
+    // Success — cancel any pending retry timer
+    if (weatherRetryTimer) { clearTimeout(weatherRetryTimer); weatherRetryTimer = null; }
+    console.log("Weather loaded OK:", data.current_weather.temperature + "°C");
   } catch (e) {
-    console.warn("Weather refresh failed:", e.message);
+    console.warn("Weather refresh failed:", e.message, "— retrying in 30s");
+    // Retry in 30 s instead of waiting the full 10-min interval
+    if (!weatherRetryTimer) {
+      weatherRetryTimer = setTimeout(() => { weatherRetryTimer = null; refreshWeather(); }, 30_000);
+    }
   }
 }
 
@@ -216,6 +228,12 @@ app.get("/api/all", (_req, res) => res.json({
   weather:   weatherCache.data  ?? null,   // ← now included
   ts: Date.now(),
 }));
+
+// Force-refresh weather on demand — hit this in browser if weather ever gets stuck
+app.get("/api/weather/refresh", async (_req, res) => {
+  await refreshWeather();
+  res.json({ ok: true, loaded: weatherCache.data != null, ts: weatherCache.ts });
+});
 
 app.get("/api/adguard/stats",   (_req, res) => res.json(adguardCache.data  ?? {}));
 app.get("/api/markets/quotes",  (_req, res) => res.json({ assets: marketCache.data ?? [] }));

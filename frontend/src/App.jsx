@@ -139,12 +139,20 @@ const DateTile = memo(function DateTile() {
 
 // ─── WEATHER (data from /api/all — no browser fetch) ─────────────────────────
 const WeatherTile = memo(function WeatherTile({ raw }) {
-  // raw = the full open-meteo JSON that the server fetched
+  const [retrying, setRetrying] = useState(false);
+
   useEffect(() => {
     if (raw?.current_weather) {
       applyTheme(raw.current_weather.weathercode, raw.current_weather.is_day ?? 1);
     }
   }, [raw]);
+
+  const forceRefresh = useCallback(async () => {
+    setRetrying(true);
+    try { await fetch("/api/weather/refresh"); } catch {}
+    // The next /api/all poll (12s) will pick up the new data
+    setTimeout(() => setRetrying(false), 13_000);
+  }, []);
 
   const cw = raw?.current_weather;
   const d  = raw?.daily;
@@ -156,7 +164,14 @@ const WeatherTile = memo(function WeatherTile({ raw }) {
       {!cw ? (
         <div className="wx-placeholder">
           <span className="wx-ph-temp">—°</span>
-          <span className="wx-ph-label">Loading weather…</span>
+          <span className="wx-ph-label">
+            {retrying ? "Refreshing…" : "Weather loading…"}
+          </span>
+          {!retrying && (
+            <button className="wx-retry-btn" onClick={forceRefresh}>
+              ↺ Retry now
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -393,7 +408,7 @@ export default function App() {
         setData(j);
         setLast(new Date());
       }
-    } catch { /* keep previous value */ }
+    } catch {}
   }, []);
 
   useEffect(() => {
