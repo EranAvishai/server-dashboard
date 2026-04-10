@@ -60,29 +60,78 @@ function execPromise(cmd, ms = 20000) {
 }
 
 // ─── Weather (server-side fetch — avoids any browser CORS issues) ─────────────
-// Weather URL — literal slash in timezone, NOT %2F (open-meteo returns 400 otherwise)
+// Weather — uses native https module (not fetch) to avoid any proxy/TLS quirks
+// GMT+3 = Israel Standard/Summer time, avoids the Asia/Jerusalem slash encoding issue
+const https = require("https");
 const WEATHER_URL =
   "https://api.open-meteo.com/v1/forecast" +
   "?latitude=31.93&longitude=34.80" +
   "&current_weather=true" +
   "&daily=weathercode,temperature_2m_max,temperature_2m_min,time" +
   "&forecast_days=4" +
-  "&timezone=Asia/Jerusalem";
+  "&timezone=auto";
+
+function httpsGet(url, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { "User-Agent": "server-dashboard/1.0" } }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`HTTP ${res.statusCode}`));
+      }
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", chunk => { body += chunk; });
+      res.on("end", () => {
+        try { resolve(JSON.parse(body)); }
+        catch (e) { reject(new Error("JSON parse failed: " + e.message)); }
+      });
+    });
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error("Timeout")); });
+    req.on("error", reject);
+  });
+}
 
 let weatherRetryTimer = null;
+let weatherLastError  = null;
+
+// Try fetching via curl as a fallback — curl works reliably on macOS regardless of Node's network stack
+function fetchWeatherViaCurl() {
+  return new Promise((resolve, reject) => {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=31.93&longitude=34.80&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min,time&forecast_days=4&timezone=GMT%2B3";
+    exec(`curl -fsSL --max-time 15 "${url}"`, { timeout: 20000 }, (err, stdout) => {
+      if (err) return reject(new Error("curl: " + err.message));
+      try { resolve(JSON.parse(stdout)); }
+      catch (e) { reject(new Error("curl JSON parse: " + stdout.slice(0, 120))); }
+    });
+  });
+}
 
 async function refreshWeather() {
+  // Try native https first, fall back to curl
+  let data = null;
+  let lastErr = null;
+
   try {
-    const data = await fetchJson(WEATHER_URL, { timeoutMs: 15000 });
-    // Validate the response has what we need before caching
-    if (!data?.current_weather) throw new Error("Missing current_weather in response");
-    weatherCache = { ts: Date.now(), data };
-    // Success — cancel any pending retry timer
-    if (weatherRetryTimer) { clearTimeout(weatherRetryTimer); weatherRetryTimer = null; }
-    console.log("Weather loaded OK:", data.current_weather.temperature + "°C");
+    data = await httpsGet(WEATHER_URL, 15000);
   } catch (e) {
-    console.warn("Weather refresh failed:", e.message, "— retrying in 30s");
-    // Retry in 30 s instead of waiting the full 10-min interval
+    lastErr = "https: " + e.message;
+    console.warn("Weather https failed:", e.message, "— trying curl");
+    try {
+      data = await fetchWeatherViaCurl();
+      lastErr = null;
+    } catch (e2) {
+      lastErr = lastErr + " | curl: " + e2.message;
+    }
+  }
+
+  if (data?.current_weather) {
+    weatherCache     = { ts: Date.now(), data };
+    weatherLastError = null;
+    if (weatherRetryTimer) { clearTimeout(weatherRetryTimer); weatherRetryTimer = null; }
+    console.log(`Weather OK: ${data.current_weather.temperature}°C code=${data.current_weather.weathercode}`);
+  } else {
+    weatherLastError = lastErr || "No current_weather in response";
+    console.warn("Weather failed:", weatherLastError, "— retry in 30s");
     if (!weatherRetryTimer) {
       weatherRetryTimer = setTimeout(() => { weatherRetryTimer = null; refreshWeather(); }, 30_000);
     }
@@ -227,6 +276,15 @@ app.get("/api/all", (_req, res) => res.json({
   streaming: playbackCache.data ?? null,
   weather:   weatherCache.data  ?? null,   // ← now included
   ts: Date.now(),
+}));
+
+// Debug — open http://127.0.0.1:8787/api/weather/status to see what's happening
+app.get("/api/weather/status", (_req, res) => res.json({
+  loaded:     weatherCache.data != null,
+  age_s:      weatherCache.ts ? Math.round((Date.now() - weatherCache.ts) / 1000) : null,
+  temp:       weatherCache.data?.current_weather?.temperature ?? null,
+  retrying:   weatherRetryTimer != null,
+  last_error: weatherLastError,   // ← now shows exactly what's failing
 }));
 
 // Force-refresh weather on demand — hit this in browser if weather ever gets stuck
