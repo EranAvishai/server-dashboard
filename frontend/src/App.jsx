@@ -120,14 +120,13 @@ const qPoint    = (r, radius = R) => ({
 const ARC_S    = qPoint(0);           // Idle  = bottom
 const ARC_E    = qPoint(TOTAL_Q);     // 4KHDR = top
 // clockwise on screen (sweep=1), exactly 180° so large-arc can be 0 or 1
-const TRACK    = `M ${ARC_S.x} ${ARC_S.y} A ${R} ${R} 0 0 1 ${ARC_E.x} ${ARC_E.y}`;
+const TRACK    = `M ${ARC_S.x} ${ARC_S.y} A ${R} ${R} 0 0 0 ${ARC_E.x} ${ARC_E.y}`;
 
 function getFillArc(rank) {
   if (rank <= 0) return null;
   if (rank >= TOTAL_Q) return TRACK;
   const fp = qPoint(rank);
-  // clockwise (sweep=1) from bottom to current — always < 180° → large-arc=0
-  return `M ${ARC_S.x} ${ARC_S.y} A ${R} ${R} 0 0 1 ${fp.x} ${fp.y}`;
+  return `M ${ARC_S.x} ${ARC_S.y} A ${R} ${R} 0 0 0 ${fp.x} ${fp.y}`;
 }
 
 // CSS rotation for needle (drawn horizontal right, rotated around CX,CY)
