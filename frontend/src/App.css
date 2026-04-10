@@ -227,7 +227,7 @@ html,body {
 
 /* ─── MARKETS ────────────────────────────────────────────────────────────────*/
 .mkt-tile  { grid-area:markets; padding:14px 22px; flex-direction:column; justify-content:space-between; }
-.mkt-inner { display:flex; align-items:center; gap:16px; flex:1; min-height:0; transition:opacity 0.35s ease, transform 0.35s ease; }
+.mkt-inner { display:flex; align-items:center; justify-content:center; gap:16px; flex:1; min-height:0; transition:opacity 0.35s ease, transform 0.35s ease; }
 .mkt-in    { opacity:1; transform:translateX(0); }
 .mkt-out   { opacity:0; transform:translateX(28px); }
 .mkt-text  { display:flex; flex-direction:column; justify-content:space-between; min-width:0; }
@@ -240,7 +240,7 @@ html,body {
 .mkt-up    { color:#34d399; }
 .mkt-dn    { color:#f87171; }
 .mkt-suf   { font-size:13px; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:0.08em; transition:color var(--tt); }
-.mkt-dots  { display:flex; gap:6px; justify-content:flex-end; }
+.mkt-dots  { display:flex; gap:6px; justify-content:center; }
 .mkt-dot   { width:5px; height:5px; border-radius:50%; background:var(--t3); transition:background 0.35s, transform 0.35s; }
 .mkt-dot-on { background:var(--accent); transform:scale(1.4); }
 
