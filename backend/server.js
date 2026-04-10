@@ -67,7 +67,7 @@ const WEATHER_URL =
   "https://api.open-meteo.com/v1/forecast" +
   "?latitude=31.93&longitude=34.80" +
   "&current_weather=true" +
-  "&daily=weathercode,temperature_2m_max,temperature_2m_min,time" +
+  "&daily=weathercode,temperature_2m_max,temperature_2m_min" +
   "&forecast_days=4" +
   "&timezone=auto";
 
@@ -97,7 +97,7 @@ let weatherLastError  = null;
 // Try fetching via curl as a fallback — curl works reliably on macOS regardless of Node's network stack
 function fetchWeatherViaCurl() {
   return new Promise((resolve, reject) => {
-    const url = "https://api.open-meteo.com/v1/forecast?latitude=31.93&longitude=34.80&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min,time&forecast_days=4&timezone=GMT%2B3";
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=31.93&longitude=34.80&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto";
     exec(`curl -fsSL --max-time 15 "${url}"`, { timeout: 20000 }, (err, stdout) => {
       if (err) return reject(new Error("curl: " + err.message));
       try { resolve(JSON.parse(stdout)); }
