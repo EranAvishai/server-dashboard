@@ -186,21 +186,33 @@ async function getLsofLines() {
   } catch { lsofCache = { ts: Date.now(), data: [] }; return []; }
 }
 
-// ─── nettop (cached) ──────────────────────────────────────────────────────────
+// ─── nettop (cached) — TWO samples for real rate, scoped to Stremio PID ────────
+// -L 1 = cumulative bytes since process start → wrong (causes 21,000 Mbps bug)
+// -L 2 -s 1 = two samples 1s apart → second row is the actual per-second delta
 async function sampleExternalRateMbps() {
   if (nettopCache.data !== null && Date.now() - nettopCache.ts < NETTOP_TTL_MS) return nettopCache.data;
   try {
-    const { stdout } = await execPromise("nettop -P -L 1 -J bytes_in,bytes_out -x", 15000);
-    let total = 0;
-    for (const line of stdout.split("\n").filter(Boolean)) {
-      if (!line.includes(",") || line.includes(TV_IP) || line.includes("127.0.0.1")) continue;
-      for (const col of line.split(",")) {
-        const t = col.trim();
-        if (/^[0-9]+$/.test(t)) { total += Number(t); break; }
-      }
+    const pidOut = await new Promise(resolve => {
+      exec("pgrep -x Stremio || pgrep -x stremio", { timeout: 3000 }, (_, out) => resolve(out || ""));
+    });
+    const pid = pidOut.trim().split("\n")[0];
+    if (!pid) { nettopCache = { ts: Date.now(), data: 0 }; return 0; }
+
+    // Two samples 1s apart — second sample is the delta = actual current rate
+    const { stdout } = await execPromise(
+      `nettop -P -L 2 -s 1 -J bytes_in,bytes_out -p ${pid} 2>/dev/null`, 15000
+    );
+    const lines = stdout.split("\n").filter(l => l.includes(","));
+    const deltaLine = lines[lines.length - 1] || "";
+    let totalBytes = 0;
+    for (const col of deltaLine.split(",")) {
+      const t = col.trim();
+      if (/^[0-9]+$/.test(t)) { totalBytes += Number(t); break; }
     }
-    nettopCache = { ts: Date.now(), data: Number(((total * 8) / 1_000_000).toFixed(2)) };
-    return nettopCache.data;
+    // bytes/second × 8 / 1,000,000 = Mbps
+    const mbps = Number(((totalBytes * 8) / 1_000_000).toFixed(2));
+    nettopCache = { ts: Date.now(), data: mbps };
+    return mbps;
   } catch { nettopCache = { ts: Date.now(), data: 0 }; return 0; }
 }
 
@@ -254,11 +266,14 @@ function countTvConnections(lines) {
   return { active: n, recent: lastTvSeenAt > 0 ? Math.round((Date.now()-lastTvSeenAt)/1000) : null, responseMs: n > 0 ? 20 : 0 };
 }
 
+// Only count peers connected TO Stremio's port — not all Mac connections
 function countExternalPeers(lines) {
   let n = 0;
   for (const l of lines) {
-    if (!l.includes("ESTABLISHED")) continue;
-    if (PRIVATE.some(r=>l.includes(r)) || l.includes(TV_IP) || l.includes(`:${STREAMIO_PORT}`)) continue;
+    if (!l.includes("ESTABLISHED"))          continue;
+    if (!l.includes(`:${STREAMIO_PORT}`))    continue; // must be Stremio port
+    if (PRIVATE.some(r => l.includes(r)))    continue; // skip local IPs
+    if (l.includes(TV_IP))                   continue; // skip TV (counted separately)
     n++;
   }
   return n;
@@ -266,30 +281,41 @@ function countExternalPeers(lines) {
 
 async function refreshPlayback() {
   try {
-    // Run process check and lsof in parallel — no extra latency
     const [stremioAlive, lines] = await Promise.all([
       isStremioAlive(),
       getLsofLines(),
     ]);
-    const tv    = countTvConnections(lines);
-    const ext   = countExternalPeers(lines);
-    const mbps  = await sampleExternalRateMbps();
-    const tpro  = classifyProfile(mbps);
+    const tv   = countTvConnections(lines);
+    const ext  = countExternalPeers(lines);
+    const mbps = await sampleExternalRateMbps();
+
+    // Profile only meaningful when TV is actively connected
+    // Without tvActive, everything is Idle regardless of background traffic
     let overall = "Idle";
-    if      (tv.active>0 && mbps>=60) overall = "4K HDR";
-    else if (tv.active>0 && mbps>=30) overall = "4K";
-    else if (tv.active>0 && mbps>=8)  overall = "1080p";
-    else if (tv.active>0)             overall = "Low bitrate";
+    if (tv.active > 0) {
+      if      (mbps >= 60) overall = "4K HDR";
+      else if (mbps >= 30) overall = "4K";
+      else if (mbps >= 8)  overall = "1080p";
+      else                 overall = "Low bitrate";
+    }
+
+    // tvStreaming = TV has connection AND data is actually flowing (> 2 Mbps)
+    // LG TVs keep a background TCP connection to Stremio even when idle —
+    // this prevents false LIVE when the TV is just on standby.
+    const tvStreaming = tv.active > 0 && mbps > 2;
+
     playbackCache = { ts: Date.now(), data: {
       tvIp: TV_IP,
       stremioOpen:     stremioAlive,
-      tvActive:        tv.active > 0,
+      tvActive:        tvStreaming,
       tvRecentSeconds: tv.recent,
-      localStatus:     tv.active > 0 ? "TV connected" : stremioAlive ? "App open" : "Idle",
+      localStatus:     tvStreaming ? "TV streaming" : tv.active > 0 ? "TV connected" : stremioAlive ? "App open" : "Idle",
       responseMs:      tv.responseMs,
-      externalConnections: ext, externalMbps: mbps,
-      torrentProfile: tpro, overallProfile: overall,
-      stable: tv.active>0 && ext>0 && overall!=="Idle" && overall===tpro,
+      externalConnections: tvStreaming ? ext  : 0,
+      externalMbps:        tvStreaming ? mbps : 0,
+      torrentProfile: classifyProfile(mbps),
+      overallProfile: overall,
+      stable: tvStreaming && ext > 0 && overall !== "Idle",
     }};
   } catch (e) { console.warn("Playback:", e.message); }
 }
