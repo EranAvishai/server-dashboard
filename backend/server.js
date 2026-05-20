@@ -124,7 +124,6 @@ async function refreshWeather() {
 // ─── Thermals (CPU temp, load, fan speed) ─────────────────────────────────────
 async function refreshThermals() {
   try {
-    // CPU load — always works, no sudo needed
     let cpuLoad = null;
     try {
       const topOut = execSync(
@@ -135,7 +134,6 @@ async function refreshThermals() {
       if (match) cpuLoad = Math.round((parseFloat(match[1]) + parseFloat(match[2])) * 10) / 10;
     } catch {}
 
-    // CPU temperature — try istats first (gem install iStats)
     let cpuTemp = null;
     try {
       const tempOut = execSync("/usr/local/bin/istats cpu temp --value-only 2>/dev/null", {
@@ -145,7 +143,6 @@ async function refreshThermals() {
       if (isNaN(cpuTemp)) cpuTemp = null;
     } catch {}
 
-    // Fan speed
     let fanSpeed = null;
     try {
       const fanOut = execSync("/usr/local/bin/istats fan speed --value-only 2>/dev/null", {
@@ -242,10 +239,7 @@ async function sampleExternalRateMbps() {
 const STREMIO_GRACE_MS = 3 * 60 * 1000;
 let lastStremioProcessSeenAt = 0;
 
-// Ground-truth playback state from the local streaming-server.
-// /stats.json returns { <infohash>: { name, peers, swarmConnections, swarmSize, swarmPaused, wires:[{downSpeed,upSpeed}], ... } }
-// Note: wires speeds are BitTorrent peer-to-peer only — HTTP traffic to the TV
-// is served outside the wire protocol, so this complements (does not replace) nettop.
+// Ground-truth playback state from the local streaming-server
 async function fetchStremioStats() {
   try {
     const json = await fetchJson(`http://127.0.0.1:${STREAMIO_PORT}/stats.json`, { timeoutMs: 4000 });
@@ -264,7 +258,6 @@ async function fetchStremioStats() {
         upMbps:   Number(((upBps   * 8) / 1_000_000).toFixed(2)),
       };
     });
-    // Pick the most active torrent: highest p2p throughput, tiebreak by peer count
     torrents.sort((a, b) =>
       (b.downMbps + b.upMbps) - (a.downMbps + a.upMbps) || b.peers - a.peers);
     return { torrents, active: torrents[0] || null };
@@ -333,17 +326,27 @@ async function refreshPlayback() {
     ]);
     const tv   = countTvConnections(lines);
     const ext  = countExternalPeers(lines);
-    const mbps = await sampleExternalRateMbps();
+
+    // nettop measures OS-level traffic scoped to Stremio PID
+    // Stremio stats measure BitTorrent wire speed internally
+    // Use nettop when available, fall back to Stremio stats
+    const nettopMbps  = await sampleExternalRateMbps();
+    const stremioMbps = stremioStats?.active?.downMbps ?? 0;
+    const mbps = nettopMbps > 0 ? nettopMbps : stremioMbps;
 
     let overall = "Idle";
     if (tv.active > 0) {
       if      (mbps >= 60) overall = "4K HDR";
       else if (mbps >= 30) overall = "4K";
       else if (mbps >= 8)  overall = "1080p";
-      else                 overall = "Low bitrate";
+      else if (mbps >= 2)  overall = "Low bitrate";
     }
 
+    // TV is streaming if connected AND data is flowing from either source
     const tvStreaming = tv.active > 0 && mbps > 2;
+
+    // Use Stremio stats peer count as fallback for external peers
+    const peerCount = ext > 0 ? ext : (stremioStats?.active?.peers ?? 0);
     const nowPlaying = stremioStats?.active ?? null;
 
     playbackCache = { ts: Date.now(), data: {
@@ -353,11 +356,11 @@ async function refreshPlayback() {
       tvRecentSeconds: tv.recent,
       localStatus:     tvStreaming ? "TV streaming" : tv.active > 0 ? "TV connected" : stremioAlive ? "App open" : "Idle",
       responseMs:      tv.responseMs,
-      externalConnections: tvStreaming ? ext  : 0,
+      externalConnections: tvStreaming ? peerCount : 0,
       externalMbps:        tvStreaming ? mbps : 0,
       torrentProfile: classifyProfile(mbps),
       overallProfile: overall,
-      stable: tvStreaming && ext > 0 && overall !== "Idle",
+      stable: tvStreaming && peerCount > 0 && overall !== "Idle",
       nowPlaying,
       torrentsTotal: stremioStats?.torrents?.length ?? 0,
     }};
@@ -400,7 +403,6 @@ app.get("/api/weather/refresh", async (_req, res) => {
 });
 
 app.get("/api/thermals", (_req, res) => res.json(thermalsCache.data ?? null));
-
 app.get("/api/adguard/stats",   (_req, res) => res.json(adguardCache.data  ?? {}));
 app.get("/api/markets/quotes",  (_req, res) => res.json({ assets: marketCache.data ?? [] }));
 app.get("/api/streamio/status", (_req, res) => res.json(playbackCache.data ?? {}));

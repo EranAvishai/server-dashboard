@@ -203,12 +203,19 @@ struct StreamingTile: View {
     private var rank: Int { profileRank[profile] ?? 0 }
     private let teal = Color(hex: "2dd4bf")
 
+    // Clean up torrent title for display
+    private var nowPlayingTitle: String? {
+        guard let raw = data?.nowPlaying?.title, active else { return nil }
+        return cleanTitle(raw)
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 16).fill(theme.surface)
                 .overlay(RoundedRectangle(cornerRadius: 16)
                     .stroke(active ? teal.opacity(0.35) : Color.white.opacity(0.07), lineWidth: 1))
             VStack(alignment: .leading, spacing: 10) {
+                // Header
                 HStack {
                     Text("STREMIO").font(.system(size: 11, weight: .bold)).foregroundColor(theme.t3)
                     Spacer()
@@ -218,12 +225,25 @@ struct StreamingTile: View {
                             .fill(active ? teal.opacity(0.18) : Color.white.opacity(0.06)))
                         .foregroundColor(active ? teal : theme.t3)
                 }
+
+                // Now Playing title (shown when streaming)
+                if let title = nowPlayingTitle {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(teal.opacity(0.9))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 ArcGaugeView(rank: rank, active: active, accent: teal)
+
+                // MBPS
                 HStack(alignment: .lastTextBaseline, spacing: 6) {
                     Text(mbps > 0 ? String(format: "%.1f", mbps) : "—")
                         .font(.custom("Impact", size: 38)).monospacedDigit().foregroundColor(active ? teal : theme.t1)
                     Text("MBPS").font(.system(size: 12, weight: .bold)).foregroundColor(theme.t2)
                 }
+                // PEERS
                 HStack(alignment: .lastTextBaseline, spacing: 6) {
                     Text(peers > 0 ? "\(peers)" : "—")
                         .font(.custom("Impact", size: 38)).monospacedDigit().foregroundColor(active ? teal : theme.t1)
@@ -231,6 +251,49 @@ struct StreamingTile: View {
                 }
             }.padding(16)
         }
+    }
+
+    /// Strip file extension, codec tags, resolution tags, and common torrent junk
+    private func cleanTitle(_ raw: String) -> String {
+        var t = raw
+        // Remove file extension
+        let extensions = [".mkv", ".mp4", ".avi", ".mov", ".webm", ".ts"]
+        for ext in extensions {
+            if t.lowercased().hasSuffix(ext) {
+                t = String(t.dropLast(ext.count))
+                break
+            }
+        }
+        // Replace dots and underscores with spaces
+        t = t.replacingOccurrences(of: ".", with: " ")
+        t = t.replacingOccurrences(of: "_", with: " ")
+        // Remove codec/resolution/quality tags
+        let junkPatterns = [
+            "\\b(x264|x265|h264|h265|hevc|avc|aac|ac3|dts|flac|eac3|atmos)\\b",
+            "\\b(720p|1080p|2160p|4k|uhd|hdr|hdr10|dolby|vision|remux|bluray|blu ray|bdrip|brrip|webrip|web dl|web-dl|hdtv|dvdrip)\\b",
+            "\\b(yts|yify|rarbg|ettv|sparks|geckos|ntb|megusta|cmrg|evo)\\b",
+            "\\[.*?\\]",
+            "\\(.*?\\)",
+        ]
+        for pattern in junkPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                t = regex.stringByReplacingMatches(in: t, range: NSRange(location: 0, length: t.utf16.count), withTemplate: "")
+            }
+        }
+        // Collapse multiple spaces, trim
+        while t.contains("  ") { t = t.replacingOccurrences(of: "  ", with: " ") }
+        t = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Detect S01E04 pattern and format nicely
+        if let regex = try? NSRegularExpression(pattern: "(?i)(s\\d{1,2}e\\d{1,2})", options: []),
+           let match = regex.firstMatch(in: t, range: NSRange(location: 0, length: t.utf16.count)) {
+            let nsRange = match.range
+            let epStart = t.index(t.startIndex, offsetBy: nsRange.location)
+            let epEnd = t.index(epStart, offsetBy: nsRange.length)
+            let episode = String(t[epStart..<epEnd]).uppercased()
+            let show = String(t[t.startIndex..<epStart]).trimmingCharacters(in: .whitespaces)
+            return "\(show) \(episode)"
+        }
+        return t
     }
 }
 

@@ -40,6 +40,16 @@ struct MarketAsset: Codable {
     let sparkline:     [Double?]?
 }
 
+struct NowPlaying: Codable {
+    let title:            String?
+    let peers:            Int?
+    let swarmConnections: Int?
+    let swarmSize:        Int?
+    let paused:           Bool?
+    let downMbps:         Double?
+    let upMbps:           Double?
+}
+
 struct StreamingData: Codable {
     let tvActive:            Bool?
     let stremioOpen:         Bool?
@@ -48,6 +58,8 @@ struct StreamingData: Codable {
     let externalConnections: Int?
     let tvRecentSeconds:     Int?
     let localStatus:         String?
+    let nowPlaying:          NowPlaying?
+    let torrentsTotal:       Int?
 }
 
 struct WeatherData: Codable {
