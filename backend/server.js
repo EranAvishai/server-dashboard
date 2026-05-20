@@ -242,6 +242,37 @@ async function sampleExternalRateMbps() {
 const STREMIO_GRACE_MS = 3 * 60 * 1000;
 let lastStremioProcessSeenAt = 0;
 
+// Ground-truth playback state from the local streaming-server.
+// /stats.json returns { <infohash>: { name, peers, swarmConnections, swarmSize, swarmPaused, wires:[{downSpeed,upSpeed}], ... } }
+// Note: wires speeds are BitTorrent peer-to-peer only — HTTP traffic to the TV
+// is served outside the wire protocol, so this complements (does not replace) nettop.
+async function fetchStremioStats() {
+  try {
+    const json = await fetchJson(`http://127.0.0.1:${STREAMIO_PORT}/stats.json`, { timeoutMs: 4000 });
+    const torrents = Object.entries(json || {}).map(([infoHash, t]) => {
+      const wires = Array.isArray(t.wires) ? t.wires : [];
+      const downBps = wires.reduce((s, w) => s + (Number(w.downSpeed) || 0), 0);
+      const upBps   = wires.reduce((s, w) => s + (Number(w.upSpeed)   || 0), 0);
+      return {
+        infoHash,
+        title: t.name || infoHash,
+        peers: Number(t.peers) || 0,
+        swarmConnections: Number(t.swarmConnections) || 0,
+        swarmSize:        Number(t.swarmSize) || 0,
+        paused: !!t.swarmPaused,
+        downMbps: Number(((downBps * 8) / 1_000_000).toFixed(2)),
+        upMbps:   Number(((upBps   * 8) / 1_000_000).toFixed(2)),
+      };
+    });
+    // Pick the most active torrent: highest p2p throughput, tiebreak by peer count
+    torrents.sort((a, b) =>
+      (b.downMbps + b.upMbps) - (a.downMbps + a.upMbps) || b.peers - a.peers);
+    return { torrents, active: torrents[0] || null };
+  } catch {
+    return null;
+  }
+}
+
 async function isStremioAlive() {
   const pgrepOut = await new Promise(resolve => {
     exec("pgrep -x Stremio || pgrep -x stremio || pgrep -fi stremio.app",
@@ -295,9 +326,10 @@ function countExternalPeers(lines) {
 
 async function refreshPlayback() {
   try {
-    const [stremioAlive, lines] = await Promise.all([
+    const [stremioAlive, lines, stremioStats] = await Promise.all([
       isStremioAlive(),
       getLsofLines(),
+      fetchStremioStats(),
     ]);
     const tv   = countTvConnections(lines);
     const ext  = countExternalPeers(lines);
@@ -312,6 +344,7 @@ async function refreshPlayback() {
     }
 
     const tvStreaming = tv.active > 0 && mbps > 2;
+    const nowPlaying = stremioStats?.active ?? null;
 
     playbackCache = { ts: Date.now(), data: {
       tvIp: TV_IP,
@@ -325,6 +358,8 @@ async function refreshPlayback() {
       torrentProfile: classifyProfile(mbps),
       overallProfile: overall,
       stable: tvStreaming && ext > 0 && overall !== "Idle",
+      nowPlaying,
+      torrentsTotal: stremioStats?.torrents?.length ?? 0,
     }};
   } catch (e) { console.warn("Playback:", e.message); }
 }
