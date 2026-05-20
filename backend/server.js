@@ -138,7 +138,7 @@ async function refreshThermals() {
     // CPU temperature — try istats first (gem install iStats)
     let cpuTemp = null;
     try {
-      const tempOut = execSync("istats cpu temp --value-only 2>/dev/null", {
+      const tempOut = execSync("/usr/local/bin/istats cpu temp --value-only 2>/dev/null", {
         encoding: "utf8", timeout: 3000,
       });
       cpuTemp = parseFloat(tempOut.trim());
@@ -148,7 +148,7 @@ async function refreshThermals() {
     // Fan speed
     let fanSpeed = null;
     try {
-      const fanOut = execSync("istats fan speed --value-only 2>/dev/null", {
+      const fanOut = execSync("/usr/local/bin/istats fan speed --value-only 2>/dev/null", {
         encoding: "utf8", timeout: 3000,
       });
       fanSpeed = parseInt(fanOut.trim());
