@@ -334,16 +334,21 @@ async function refreshPlayback() {
     const stremioMbps = stremioStats?.active?.downMbps ?? 0;
     const mbps = nettopMbps > 0 ? nettopMbps : stremioMbps;
 
+    // TV is streaming if:
+    //   1. TV has ESTABLISHED connection to Stremio port, AND
+    //   2. Either data is flowing (mbps > 2) OR there's an active non-paused torrent
+    //      (content may be buffered — Stremio serves via HTTP to the TV even when
+    //       BitTorrent wires are idle and nettop reads 0)
+    const hasActiveTorrent = stremioStats?.active != null && !stremioStats.active.paused;
+    const tvStreaming = tv.active > 0 && (mbps > 2 || hasActiveTorrent);
+
     let overall = "Idle";
-    if (tv.active > 0) {
+    if (tvStreaming) {
       if      (mbps >= 60) overall = "4K HDR";
       else if (mbps >= 30) overall = "4K";
       else if (mbps >= 8)  overall = "1080p";
-      else if (mbps >= 2)  overall = "Low bitrate";
+      else                 overall = "Low bitrate";
     }
-
-    // TV is streaming if connected AND data is flowing from either source
-    const tvStreaming = tv.active > 0 && mbps > 2;
 
     // Use Stremio stats peer count as fallback for external peers
     const peerCount = ext > 0 ? ext : (stremioStats?.active?.peers ?? 0);
