@@ -197,13 +197,22 @@ struct AdGuardChart: View {
 struct StreamingTile: View {
     let data: StreamingData?; let theme: DashboardTheme
     private var active: Bool { data?.tvActive == true }
-    private var profile: String { data?.overallProfile ?? "Idle" }
     private var mbps: Double { data?.externalMbps ?? 0 }
     private var peers: Int { data?.externalConnections ?? 0 }
-    private var rank: Int { profileRank[profile] ?? 0 }
     private let teal = Color(hex: "2dd4bf")
 
-    // Clean up torrent title for display
+    // Infer profile from title resolution when mbps is 0
+    private var profile: String {
+        let p = data?.overallProfile ?? "Idle"
+        if p == "Low bitrate" || p == "Idle", active, let title = data?.nowPlaying?.title?.lowercased() {
+            if title.contains("2160p") || title.contains("4k uhd") { return "4K HDR" }
+            if title.contains("1080p") { return "1080p" }
+            if title.contains("720p") { return "Low bitrate" }
+        }
+        return p
+    }
+    private var rank: Int { profileRank[profile] ?? 0 }
+
     private var nowPlayingTitle: String? {
         guard let raw = data?.nowPlaying?.title, active else { return nil }
         return cleanTitle(raw)
@@ -226,7 +235,7 @@ struct StreamingTile: View {
                         .foregroundColor(active ? teal : theme.t3)
                 }
 
-                // Now Playing title (shown when streaming)
+                // Now Playing title
                 if let title = nowPlayingTitle {
                     Text(title)
                         .font(.system(size: 12, weight: .semibold))
@@ -253,42 +262,45 @@ struct StreamingTile: View {
         }
     }
 
-    /// Strip file extension, codec tags, resolution tags, and common torrent junk
+    /// Strip torrent junk from title for clean display
     private func cleanTitle(_ raw: String) -> String {
         var t = raw
-        // Remove file extension
+        // Remove file extensions
         let extensions = [".mkv", ".mp4", ".avi", ".mov", ".webm", ".ts"]
         for ext in extensions {
-            if t.lowercased().hasSuffix(ext) {
-                t = String(t.dropLast(ext.count))
-                break
-            }
+            if t.lowercased().hasSuffix(ext) { t = String(t.dropLast(ext.count)); break }
         }
-        // Replace dots and underscores with spaces
+        // Dots and underscores to spaces
         t = t.replacingOccurrences(of: ".", with: " ")
         t = t.replacingOccurrences(of: "_", with: " ")
-        // Remove codec/resolution/quality tags
+        // Remove junk tags — expanded list
         let junkPatterns = [
-            "\\b(x264|x265|h264|h265|hevc|avc|aac|ac3|dts|flac|eac3|atmos)\\b",
-            "\\b(720p|1080p|2160p|4k|uhd|hdr|hdr10|dolby|vision|remux|bluray|blu ray|bdrip|brrip|webrip|web dl|web-dl|hdtv|dvdrip)\\b",
-            "\\b(yts|yify|rarbg|ettv|sparks|geckos|ntb|megusta|cmrg|evo)\\b",
+            "\\b(x264|x265|h264|h265|hevc|avc|aac|ac3|dts|flac|eac3|atmos|ddp?5?[. ]?1|truehd)\\b",
+            "\\b(720p|1080p|2160p|4k|uhd|hdr|hdr10|hdr10plus|dolby|vision|dv|sdr)\\b",
+            "\\b(remux|bluray|blu ray|bdrip|brrip|webrip|web dl|web-dl|hdtv|dvdrip|nf|amzn|dsnp|hmax|atvp|imax)\\b",
+            "\\b(yts|yify|rarbg|ettv|sparks|geckos|ntb|megusta|cmrg|evo|flux|sigma|g66|demonanges|demonangex|tigole|qxr|d3g|fgt|ion10|ion265)\\b",
+            "\\b(multi|dual|hindi|english|french|german|spanish|italian|portuguese|russian|arabic|hebrew|japanese|korean|chinese)\\b",
             "\\[.*?\\]",
             "\\(.*?\\)",
+            "-[a-zA-Z0-9]{1,12}$",  // release group at end like -NTb, -G66
         ]
         for pattern in junkPatterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
                 t = regex.stringByReplacingMatches(in: t, range: NSRange(location: 0, length: t.utf16.count), withTemplate: "")
             }
         }
-        // Collapse multiple spaces, trim
+        // Collapse spaces and trim
         while t.contains("  ") { t = t.replacingOccurrences(of: "  ", with: " ") }
         t = t.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Detect S01E04 pattern and format nicely
-        if let regex = try? NSRegularExpression(pattern: "(?i)(s\\d{1,2}e\\d{1,2})", options: []),
+        // Trim trailing dashes/spaces
+        while t.hasSuffix("-") || t.hasSuffix(" ") { t = String(t.dropLast()) }
+
+        // Format season/episode patterns
+        // S02E04 or S02E01-09
+        if let regex = try? NSRegularExpression(pattern: "(?i)(s\\d{1,2}(?:e\\d{1,2}(?:-(?:e?\\d{1,2}))?)?)", options: []),
            let match = regex.firstMatch(in: t, range: NSRange(location: 0, length: t.utf16.count)) {
-            let nsRange = match.range
-            let epStart = t.index(t.startIndex, offsetBy: nsRange.location)
-            let epEnd = t.index(epStart, offsetBy: nsRange.length)
+            let epStart = t.index(t.startIndex, offsetBy: match.range.location)
+            let epEnd = t.index(epStart, offsetBy: match.range.length)
             let episode = String(t[epStart..<epEnd]).uppercased()
             let show = String(t[t.startIndex..<epStart]).trimmingCharacters(in: .whitespaces)
             return "\(show) \(episode)"

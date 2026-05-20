@@ -347,7 +347,15 @@ async function refreshPlayback() {
       if      (mbps >= 60) overall = "4K HDR";
       else if (mbps >= 30) overall = "4K";
       else if (mbps >= 8)  overall = "1080p";
-      else                 overall = "Low bitrate";
+      else if (mbps >= 2)  overall = "Low bitrate";
+      else {
+        // mbps is 0 (buffered playback) — infer from title resolution
+        const title = (stremioStats?.active?.title || "").toLowerCase();
+        if (title.includes("2160p") || title.includes("4k"))   overall = "4K HDR";
+        else if (title.includes("1080p"))                       overall = "1080p";
+        else if (title.includes("720p"))                        overall = "Low bitrate";
+        else                                                    overall = "Low bitrate";
+      }
     }
 
     // Use Stremio stats peer count as fallback for external peers
