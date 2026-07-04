@@ -38,6 +38,16 @@ class AppSettings: ObservableObject {
         willSet { objectWillChange.send() }
     }
 
+    // Keys here must match the @AppStorage keys read directly by
+    // StreamingTile in TileViews.swift — that's what keeps the tile
+    // and this panel in sync without any extra plumbing.
+    @AppStorage("dashboard.streamGaugeStyle") var streamGaugeStyle: String = StreamGaugeStyle.arc.rawValue {
+        willSet { objectWillChange.send() }
+    }
+    @AppStorage("dashboard.streamGaugeScale") var streamGaugeScale: Double = 1.0 {
+        willSet { objectWillChange.send() }
+    }
+
     var accentColor: Color { Color(hex: accentHex) }
 
     static let accentPresets: [(name: String, hex: String)] = [
@@ -139,6 +149,36 @@ struct SettingsPanel: View {
                             TileToggle("AdGuard",   icon: "shield.fill",       isOn: $settings.showAdGuard)
                             TileToggle("Streaming", icon: "play.tv.fill",      isOn: $settings.showStreaming)
                             TileToggle("Markets",   icon: "chart.line.uptrend.xyaxis", isOn: $settings.showMarkets)
+                        }
+
+                        Divider().overlay(Color.white.opacity(0.1))
+
+                        // ── STREAMING GAUGE ─────────────────────────────
+                        SectionHeader("Streaming Gauge")
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Gauge style")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.5))
+
+                            Picker("", selection: $settings.streamGaugeStyle) {
+                                ForEach(StreamGaugeStyle.allCases) { style in
+                                    Text(style.displayName).tag(style.rawValue)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                        }
+
+                        SettingRow(label: "Gauge size") {
+                            HStack(spacing: 10) {
+                                Slider(value: $settings.streamGaugeScale, in: 0.6...1.5, step: 0.05)
+                                    .frame(width: 120)
+                                Text(String(format: "%.0f%%", settings.streamGaugeScale * 100))
+                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .frame(width: 38, alignment: .trailing)
+                            }
                         }
 
                         Divider().overlay(Color.white.opacity(0.1))

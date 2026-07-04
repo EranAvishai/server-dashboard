@@ -239,14 +239,47 @@ async function sampleExternalRateMbps() {
 const STREMIO_GRACE_MS = 3 * 60 * 1000;
 let lastStremioProcessSeenAt = 0;
 
+// How long a "selected" torrent is still trusted as "now playing" after
+// the last time it actually moved bytes. Needed because:
+//   1. Stremio's engine leaves a file marked `selected` even after
+//      playback has stopped — it doesn't clear this on its own.
+//   2. When the TV powers off, it doesn't send a TCP FIN/RST, so the
+//      socket can sit as ESTABLISHED in `lsof` for a long time with
+//      no traffic at all.
+// Selection state and connection state can both lie; only real,
+// recent data movement is trustworthy. 90s covers normal buffering
+// pauses without leaving a stale "LIVE" badge for minutes after the
+// TV is actually off.
+const PLAYBACK_ACTIVITY_GRACE_MS = 90 * 1000;
+const torrentActivity = new Map(); // infoHash -> { lastDownloaded, lastActivityAt }
+
 // Ground-truth playback state from the local streaming-server
 async function fetchStremioStats() {
   try {
     const json = await fetchJson(`http://127.0.0.1:${STREAMIO_PORT}/stats.json`, { timeoutMs: 4000 });
+    const seenIds = new Set(Object.keys(json || {}));
+
+    // Prune activity tracking for torrents that no longer exist at all
+    for (const id of torrentActivity.keys()) {
+      if (!seenIds.has(id)) torrentActivity.delete(id);
+    }
+
     const torrents = Object.entries(json || {}).map(([infoHash, t]) => {
       const wires = Array.isArray(t.wires) ? t.wires : [];
       const downBps = wires.reduce((s, w) => s + (Number(w.downSpeed) || 0), 0);
       const upBps   = wires.reduce((s, w) => s + (Number(w.upSpeed)   || 0), 0);
+      const downloadedBytes = Number(t.downloaded) || 0;
+
+      // Detect real activity two ways: instantaneous wire speed right now,
+      // or the cumulative downloaded counter having grown since our last
+      // poll (catches transfers that happened between samples).
+      const prev = torrentActivity.get(infoHash);
+      const bytesGrew = prev ? downloadedBytes > prev.lastDownloaded : false;
+      const transferringNow = downBps > 0 || upBps > 0 || bytesGrew;
+      const lastActivityAt = transferringNow ? Date.now() : (prev?.lastActivityAt || 0);
+      torrentActivity.set(infoHash, { lastDownloaded: downloadedBytes, lastActivityAt });
+      const recentlyActive = lastActivityAt > 0 && (Date.now() - lastActivityAt) < PLAYBACK_ACTIVITY_GRACE_MS;
+
       return {
         infoHash,
         title: t.name || infoHash,
@@ -255,19 +288,17 @@ async function fetchStremioStats() {
         swarmSize:        Number(t.swarmSize) || 0,
         paused: !!t.swarmPaused,
         // A torrent only counts as "now playing" if a file is actually
-        // selected for streaming. Stremio's engine keeps every torrent
-        // it has ever touched in stats.json (background seeds, history,
-        // stopped downloads) — most of them idle forever with 0 speed.
-        // Without this, torrents[0] falls back to "whichever has the
-        // most peers," which is arbitrary and can surface a show that
-        // finished playing days or weeks ago.
+        // selected for streaming AND it has moved bytes recently.
+        // Selection alone isn't enough — see PLAYBACK_ACTIVITY_GRACE_MS
+        // above for why.
         selected: Array.isArray(t.selections) && t.selections.length > 0,
+        recentlyActive,
         downMbps: Number(((downBps * 8) / 1_000_000).toFixed(2)),
         upMbps:   Number(((upBps   * 8) / 1_000_000).toFixed(2)),
       };
     });
 
-    const candidates = torrents.filter(t => t.selected);
+    const candidates = torrents.filter(t => t.selected && t.recentlyActive);
     candidates.sort((a, b) =>
       (b.downMbps + b.upMbps) - (a.downMbps + a.upMbps) || b.peers - a.peers);
 

@@ -194,8 +194,32 @@ struct AdGuardChart: View {
 }
 
 // ── STREAMING ────────────────────────────────────────────────────
+
+/// Which visual style renders the quality gauge in StreamingTile.
+/// Persisted via @AppStorage so the choice made in Settings sticks
+/// across launches. Add cases here if more styles are introduced later.
+enum StreamGaugeStyle: String, CaseIterable, Identifiable {
+    case arc = "arc"
+    case bar = "bar"
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .arc: return "Arc"
+        case .bar: return "Bar"
+        }
+    }
+}
+
 struct StreamingTile: View {
     let data: StreamingData?; let theme: DashboardTheme
+
+    // Gauge style + size are user-configurable from SettingsPanel.
+    // Keys are namespaced with "dashboard." to avoid collisions with
+    // any other @AppStorage flags already in use.
+    @AppStorage("dashboard.streamGaugeStyle") private var gaugeStyleRaw: String = StreamGaugeStyle.arc.rawValue
+    @AppStorage("dashboard.streamGaugeScale") private var gaugeScale: Double = 1.0
+    private var gaugeStyle: StreamGaugeStyle { StreamGaugeStyle(rawValue: gaugeStyleRaw) ?? .arc }
+
     private var active: Bool { data?.tvActive == true }
     private var mbps: Double { data?.externalMbps ?? 0 }
     private var peers: Int { data?.externalConnections ?? 0 }
@@ -244,7 +268,14 @@ struct StreamingTile: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                ArcGaugeView(rank: rank, active: active, accent: teal)
+                Group {
+                    switch gaugeStyle {
+                    case .arc:
+                        ArcGaugeView(rank: rank, active: active, accent: teal, scale: gaugeScale)
+                    case .bar:
+                        VerticalBarGaugeView(rank: rank, active: active, accent: teal, scale: gaugeScale)
+                    }
+                }
 
                 // MBPS
                 HStack(alignment: .lastTextBaseline, spacing: 6) {
@@ -312,46 +343,52 @@ struct StreamingTile: View {
 // ── Arc Gauge ────────────────────────────────────────────────────
 struct FillArcShape: Shape {
     var endAngleDeg: Double
+    var radius: CGFloat? = nil
     var animatableData: Double { get { endAngleDeg } set { endAngleDeg = newValue } }
     func path(in rect: CGRect) -> Path {
         var p = Path(); guard abs(endAngleDeg - 90) > 0.5 else { return p }
-        let cx = rect.width * 0.18, cy = rect.midY, r = min(rect.width * 0.44, rect.height * 0.44)
+        let cx = rect.width * 0.18, cy = rect.midY
+        let r = radius ?? min(rect.width * 0.44, rect.height * 0.44)
         p.addArc(center: CGPoint(x: cx, y: cy), radius: r, startAngle: .degrees(90), endAngle: .degrees(endAngleDeg), clockwise: true)
         return p
     }
 }
 struct NeedleShape: Shape {
     var angleDeg: Double
+    var length: CGFloat? = nil
     var animatableData: Double { get { angleDeg } set { angleDeg = newValue } }
     func path(in rect: CGRect) -> Path {
         var p = Path(); let cx = rect.width * 0.18, cy = rect.midY
-        let len = min(rect.width * 0.44, rect.height * 0.44) * 0.76, rad = angleDeg * .pi / 180.0
+        let len = length ?? (min(rect.width * 0.44, rect.height * 0.44) * 0.76), rad = angleDeg * .pi / 180.0
         p.move(to: CGPoint(x: cx, y: cy)); p.addLine(to: CGPoint(x: cx + len * cos(rad), y: cy + len * sin(rad)))
         return p
     }
 }
 struct ArcGaugeView: View {
     let rank: Int; let active: Bool; let accent: Color
+    var scale: Double = 1.0
     @State private var animRank: Double = 0
     private let labels = ["Idle", "Low", "1080p", "4K", "4K HDR"]
     private func deg(_ r: Double) -> Double { 90.0 - r * 45.0 }
-    private func dot(_ r: Double, _ rect: CGRect) -> CGPoint {
-        let cx = rect.width * 0.18, cy = rect.midY, ra = min(rect.width * 0.44, rect.height * 0.44)
-        let a = deg(r) * .pi / 180.0; return CGPoint(x: cx + ra * cos(a), y: cy + ra * sin(a))
+    private func dot(_ r: Double, _ rect: CGRect, _ R: CGFloat) -> CGPoint {
+        let cx = rect.width * 0.18, cy = rect.midY
+        let a = deg(r) * .pi / 180.0; return CGPoint(x: cx + R * cos(a), y: cy + R * sin(a))
     }
     var body: some View {
         ZStack {
             GeometryReader { geo in
                 let rect = geo.frame(in: .local)
-                let cx = rect.width * 0.18, cy = rect.midY, R = min(rect.width * 0.44, rect.height * 0.44)
+                let cx = rect.width * 0.18, cy = rect.midY
+                let R = min(rect.width * 0.44, rect.height * 0.44) * CGFloat(scale.clamped(0.6, 1.5))
+                let lineWidth = 4.5 * CGFloat(scale.clamped(0.7, 1.4))
                 Path { p in p.addArc(center: CGPoint(x: cx, y: cy), radius: R, startAngle: .degrees(90), endAngle: .degrees(-90), clockwise: true) }
-                    .stroke(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                FillArcShape(endAngleDeg: deg(animRank)).stroke(accent.opacity(active ? 0.8 : 0), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                NeedleShape(angleDeg: deg(animRank)).stroke(active ? Color.white.opacity(0.92) : Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .stroke(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                FillArcShape(endAngleDeg: deg(animRank), radius: R).stroke(accent.opacity(active ? 0.8 : 0), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                NeedleShape(angleDeg: deg(animRank), length: R * 0.76).stroke(active ? Color.white.opacity(0.92) : Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 ForEach(0..<labels.count, id: \.self) { i in
-                    let pos = dot(Double(i), rect)
+                    let pos = dot(Double(i), rect, R)
                     Circle().fill(i <= rank && active ? accent : Color.white.opacity(0.2)).frame(width: 6, height: 6).position(pos)
-                    Text(labels[i]).font(.system(size: 10, weight: .semibold))
+                    Text(labels[i]).font(.system(size: 10 * CGFloat(scale.clamped(0.8, 1.3)), weight: .semibold))
                         .foregroundColor(i == rank ? Color.white.opacity(0.9) : Color.white.opacity(0.35))
                         .position(x: pos.x + R * 0.38, y: pos.y)
                 }
@@ -360,6 +397,84 @@ struct ArcGaugeView: View {
         .onChange(of: rank) { _ in withAnimation(.interpolatingSpring(stiffness: 180, damping: 15)) { animRank = Double(rank) } }
         .onAppear {
             // Delay slightly so the view is laid out, then animate to current rank
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.interpolatingSpring(stiffness: 180, damping: 15)) { animRank = Double(rank) }
+            }
+        }
+    }
+}
+
+/// Clamp helper used by the gauge scale slider — kept file-local and
+/// tiny so it doesn't collide with any clamping utility you may already
+/// have elsewhere in the app.
+private extension Double {
+    func clamped(_ lo: Double, _ hi: Double) -> Double { Swift.min(Swift.max(self, lo), hi) }
+}
+
+// ── Vertical Bar Gauge ──────────────────────────────────────────
+/// Alternative to ArcGaugeView — a "battery style" vertical fill bar.
+/// Same (rank, active, accent) contract as ArcGaugeView plus an
+/// optional `scale` for user-driven resizing from Settings.
+struct VerticalBarGaugeView: View {
+    let rank: Int; let active: Bool; let accent: Color
+    var scale: Double = 1.0
+    @State private var animRank: Double = 0
+    private let labels = ["Idle", "Low", "1080p", "4K", "4K HDR"]
+    private var maxRank: Double { Double(labels.count - 1) }
+    private var fraction: CGFloat { maxRank > 0 ? CGFloat(animRank / maxRank) : 0 }
+
+    var body: some View {
+        GeometryReader { geo in
+            let barWidth = max(10, 24 * CGFloat(scale.clamped(0.6, 1.6)))
+            let corner = barWidth / 2
+            let fontSize = 10 * CGFloat(scale.clamped(0.8, 1.3))
+            let barHeight = geo.size.height * 0.92
+
+            HStack(alignment: .center, spacing: 10) {
+                Spacer(minLength: 0)
+
+                ZStack(alignment: .bottom) {
+                    RoundedRectangle(cornerRadius: corner)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: barWidth, height: barHeight)
+
+                    // Tick marks at each quality boundary
+                    VStack(spacing: 0) {
+                        ForEach(0..<(labels.count - 1), id: \.self) { _ in
+                            Spacer(minLength: 0)
+                            Rectangle().fill(Color.white.opacity(0.14)).frame(width: barWidth, height: 1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(height: barHeight)
+
+                    RoundedRectangle(cornerRadius: corner)
+                        .fill(LinearGradient(
+                            colors: [accent.opacity(active ? 0.55 : 0.12), accent.opacity(active ? 1.0 : 0.18)],
+                            startPoint: .bottom, endPoint: .top))
+                        .frame(width: barWidth, height: max(4, barHeight * fraction))
+                }
+                .overlay(RoundedRectangle(cornerRadius: corner).stroke(Color.white.opacity(0.12), lineWidth: 1))
+                .frame(height: barHeight)
+
+                // Labels top (best quality) to bottom (idle), matching fill direction
+                VStack(spacing: 0) {
+                    ForEach(0..<labels.count, id: \.self) { i in
+                        let labelIndex = labels.count - 1 - i
+                        if i > 0 { Spacer(minLength: 0) }
+                        Text(labels[labelIndex])
+                            .font(.system(size: fontSize, weight: .semibold))
+                            .foregroundColor(labelIndex == rank && active ? Color.white.opacity(0.9) : Color.white.opacity(0.35))
+                    }
+                }
+                .frame(height: barHeight)
+
+                Spacer(minLength: 0)
+            }
+            .frame(height: geo.size.height)
+        }
+        .onChange(of: rank) { _ in withAnimation(.interpolatingSpring(stiffness: 180, damping: 15)) { animRank = Double(rank) } }
+        .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 withAnimation(.interpolatingSpring(stiffness: 180, damping: 15)) { animRank = Double(rank) }
             }
