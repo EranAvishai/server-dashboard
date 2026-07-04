@@ -254,13 +254,24 @@ async function fetchStremioStats() {
         swarmConnections: Number(t.swarmConnections) || 0,
         swarmSize:        Number(t.swarmSize) || 0,
         paused: !!t.swarmPaused,
+        // A torrent only counts as "now playing" if a file is actually
+        // selected for streaming. Stremio's engine keeps every torrent
+        // it has ever touched in stats.json (background seeds, history,
+        // stopped downloads) — most of them idle forever with 0 speed.
+        // Without this, torrents[0] falls back to "whichever has the
+        // most peers," which is arbitrary and can surface a show that
+        // finished playing days or weeks ago.
+        selected: Array.isArray(t.selections) && t.selections.length > 0,
         downMbps: Number(((downBps * 8) / 1_000_000).toFixed(2)),
         upMbps:   Number(((upBps   * 8) / 1_000_000).toFixed(2)),
       };
     });
-    torrents.sort((a, b) =>
+
+    const candidates = torrents.filter(t => t.selected);
+    candidates.sort((a, b) =>
       (b.downMbps + b.upMbps) - (a.downMbps + a.upMbps) || b.peers - a.peers);
-    return { torrents, active: torrents[0] || null };
+
+    return { torrents, active: candidates[0] || null };
   } catch {
     return null;
   }

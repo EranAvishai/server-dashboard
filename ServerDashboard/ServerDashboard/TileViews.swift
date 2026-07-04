@@ -358,7 +358,12 @@ struct ArcGaugeView: View {
             }
         }
         .onChange(of: rank) { _ in withAnimation(.interpolatingSpring(stiffness: 180, damping: 15)) { animRank = Double(rank) } }
-        .onAppear { animRank = Double(rank) }
+        .onAppear {
+            // Delay slightly so the view is laid out, then animate to current rank
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.interpolatingSpring(stiffness: 180, damping: 15)) { animRank = Double(rank) }
+            }
+        }
     }
 }
 
